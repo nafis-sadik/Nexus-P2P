@@ -9,6 +9,7 @@ import AiSettings from './components/AiSettings';
 import { UserProfile, ChatMessage, PeerState, AiConfig } from './types';
 import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { copyToClipboard } from './utils';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -104,10 +105,12 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, msg]);
   };
 
-  const copyId = () => {
-    navigator.clipboard.writeText(peerState.myId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyId = async () => {
+    const success = await copyToClipboard(peerState.myId);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleSaveAiConfig = (config: AiConfig) => {
