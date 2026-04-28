@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DataConnection } from 'peerjs';
-import { ChatMessage, MessageType, UserProfile } from '../types';
+import { ChatMessage, MessageType, UserProfile, AiConfig } from '../types';
 import Button from './Button';
 import { Send, Paperclip, FileText, Download, Sparkles, Bot } from 'lucide-react';
-import * as geminiService from '../services/geminiService';
+import * as aiService from '../services/aiService';
 
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -12,9 +12,10 @@ interface ChatInterfaceProps {
   currentUser: UserProfile;
   messages: ChatMessage[];
   onSendMessage: (msg: ChatMessage) => void;
+  aiConfig: AiConfig | null;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, messages, onSendMessage }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, messages, onSendMessage, aiConfig }) => {
   const [inputText, setInputText] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isAiEnabled, setIsAiEnabled] = useState(true);
@@ -23,12 +24,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Check if AI is enabled on mount
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'undefined' || apiKey === 'null' || apiKey.trim() === '') {
+    // Check if AI is enabled based on config or env
+    if (!aiConfig && (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'undefined')) {
       setIsAiEnabled(false);
+    } else {
+      setIsAiEnabled(true);
     }
-  }, []);
+  }, [aiConfig]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,38 +102,46 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
 
   const handleAiSuggestions = async () => {
     if (!isAiEnabled) {
-      alert("Gemini AI is not configured. Please add your API key in the app settings.");
       return;
     }
     setIsAiThinking(true);
-    const suggestionsRaw = await geminiService.generateSmartReply(messages);
-    if (suggestionsRaw) {
-        // Parse the pipe-separated list
-        const list = suggestionsRaw.split('|').map(s => s.trim()).filter(s => s.length > 0);
-        setSuggestedReplies(list);
+    try {
+      const suggestionsRaw = await aiService.generateSmartReply(messages, aiConfig || undefined);
+      if (suggestionsRaw) {
+          // Parse the pipe-separated list
+          const list = suggestionsRaw.split('|').map(s => s.trim()).filter(s => s.length > 0);
+          setSuggestedReplies(list);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsAiThinking(false);
     }
-    setIsAiThinking(false);
   };
 
   const handleSummarize = async () => {
       if (!isAiEnabled) {
-        alert("Gemini AI is not configured. Please add your API key in the app settings.");
         return;
       }
       setIsAiThinking(true);
-      const summary = await geminiService.summarizeConversation(messages);
-      
-      // Add as a local system message just for this user
-      const msg: ChatMessage = {
-          id: crypto.randomUUID(),
-          senderId: 'ai-bot',
-          senderName: 'Gemini AI',
-          content: summary,
-          type: MessageType.SYSTEM,
-          timestamp: Date.now()
-      };
-      onSendMessage(msg); // Only adds to local view effectively if we don't send it over wire
-      setIsAiThinking(false);
+      try {
+        const summary = await aiService.summarizeConversation(messages, aiConfig || undefined);
+        
+        // Add as a local system message just for this user
+        const msg: ChatMessage = {
+            id: crypto.randomUUID(),
+            senderId: 'ai-bot',
+            senderName: `${aiConfig?.provider ? aiConfig.provider.toUpperCase() : 'Nexus'} AI`,
+            content: summary,
+            type: MessageType.SYSTEM,
+            timestamp: Date.now()
+        };
+        onSendMessage(msg); 
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsAiThinking(false);
+      }
   }
 
   return (
@@ -139,7 +149,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
       {/* Header */}
       <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
         <h3 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-           <Send className="w-4 h-4 text-blue-500" /> p2p_transmission
+           <Send className="w-4 h-4 text-blue-500" /> Private Messages
         </h3>
         <div className="flex gap-2">
             <Button 
@@ -148,7 +158,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
                 onClick={handleSummarize}
                 disabled={isAiThinking}
             >
-                <Bot className="w-3 h-3 mr-1"/> AI_SUMMARIZE
+                <Bot className="w-3 h-3 mr-1"/> Summarize Chat
             </Button>
         </div>
       </div>
@@ -171,7 +181,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
                         <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-500/20 text-indigo-900 dark:text-indigo-100 text-sm p-4 rounded-2xl max-w-[85%] flex items-start shadow-sm">
                             <Sparkles className="w-4 h-4 mr-3 mt-0.5 flex-shrink-0 text-indigo-600 dark:text-indigo-400" />
                             <div>
-                                <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-1">Generated Summary</p>
+                                <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-1">Chat Summary</p>
                                 <p className="leading-relaxed opacity-90">{msg.content}</p>
                             </div>
                         </div>
@@ -261,15 +271,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
             disabled={isAiThinking}
             title={isAiEnabled ? "AI Smart Reply" : "AI Disabled (Configure in Settings)"}
            >
-             <Sparkles className={`w-5 h-5 ${isAiThinking ? 'animate-spin' : ''}`} />
+             <Sparkles className={`w-6 h-6 ${isAiThinking ? 'animate-spin' : ''}`} />
            </Button>
 
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-            title="Attach Data"
+            title="Send File"
           >
-            <Paperclip className="w-5 h-5" />
+            <Paperclip className="w-6 h-6" />
           </button>
           <input 
             type="file" 
@@ -283,7 +293,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
-            placeholder={connection ? "Compose transmission..." : "Waiting for connection..."}
+            placeholder={connection ? "Type a message..." : "Waiting for connection..."}
             className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-full px-5 py-2.5 focus:ring-1 focus:ring-blue-500/50 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-all"
             disabled={!connection}
           />
@@ -293,7 +303,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
             disabled={!connection || !inputText.trim()}
             className="rounded-full w-10 h-10 p-0 flex items-center justify-center bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-6 h-6" />
           </Button>
         </div>
       </div>
