@@ -181,21 +181,21 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 md:gap-4 flex-shrink-0">
           <ThemeToggle />
           
-          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-2 hidden sm:block" />
 
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className={`p-2 rounded-xl transition-all flex items-center gap-2 ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`p-1.5 md:p-2 rounded-xl transition-all flex items-center gap-2 ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             title="AI Settings"
           >
-            <Bot className="w-5 h-5" />
+            <Bot className="w-5 h-5 md:w-5 md:h-5" />
             <span className="text-xs font-semibold hidden lg:block">{aiConfig ? 'AI READY' : 'SETUP AI'}</span>
           </button>
           
-          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-2 hidden md:block" />
 
           <div className="hidden md:flex flex-col items-end mr-1">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user.name}</span>
@@ -209,7 +209,7 @@ const App: React.FC = () => {
           </motion.div>
           <Button 
             variant="ghost" 
-            className="px-2 md:px-4 h-10 md:h-11 hover:bg-red-500/10 group border-none flex items-center gap-2 transition-all duration-300 rounded-xl" 
+            className="px-1.5 md:px-4 h-9 md:h-11 hover:bg-red-500/10 group border-none flex items-center gap-1.5 transition-all duration-300 rounded-xl flex-shrink-0" 
             onClick={() => {
               if (peerInstance) {
                   peerInstance.destroy();
@@ -219,7 +219,7 @@ const App: React.FC = () => {
             }}
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
-            <span className="text-[10px] md:text-xs font-bold text-red-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest">Logout</span>
+            <span className="text-[10px] md:text-xs font-bold text-red-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest hidden xs:inline">Logout</span>
           </Button>
         </div>
       </motion.nav>
