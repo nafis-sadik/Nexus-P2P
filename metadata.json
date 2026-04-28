@@ -3,7 +3,8 @@
   "description": "A comprehensive Peer-to-Peer communication platform featuring Chat, File Sharing, Voice/Video Calls, and Screen Sharing, enhanced with Gemini AI.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "display-capture"
   ],
   "majorCapabilities": []
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "latest",
     "@tailwindcss/vite": "^4.2.2",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.454.0",
     "motion": "^11.11.11",
     "peerjs": "^1.5.4",

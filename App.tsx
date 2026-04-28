@@ -7,10 +7,11 @@ import Button from './components/Button';
 import ThemeToggle from './components/ThemeToggle';
 import AiSettings from './components/AiSettings';
 import { UserProfile, ChatMessage, PeerState, AiConfig } from './types';
-import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot, QrCode, Download } from 'lucide-react';
+import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot, QrCode, Download, Scan } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { copyToClipboard } from './utils';
 import { QRCodeCanvas } from 'qrcode.react';
+import QrScanner from './components/QrScanner';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
     const saved = localStorage.getItem('nexus-ai-config');
     return saved ? JSON.parse(saved) : null;
@@ -119,6 +121,11 @@ const App: React.FC = () => {
     setAiConfig(config);
     localStorage.setItem('nexus-ai-config', JSON.stringify(config));
     setIsSettingsOpen(false);
+  };
+
+  const handleScan = (decodedText: string) => {
+    setTargetPeerId(decodedText);
+    setIsScanning(false);
   };
 
   const downloadQrCode = () => {
@@ -293,16 +300,37 @@ const App: React.FC = () => {
             <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Start Connection</h2>
             {!peerState.isConnectionOpen ? (
               <div className="space-y-4">
-                <div className="relative">
+                <div className="relative group/input">
                   <input 
                     type="text"
                     placeholder="PASTE FRIEND'S ID"
                     value={targetPeerId}
                     onChange={(e) => setTargetPeerId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
+                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 pr-24 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
                   />
-                  <div className="absolute right-3 top-3.5 text-slate-300 dark:text-slate-800">
-                    <Radio className="w-4 h-4" />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      onClick={() => setIsScanning(true)}
+                      className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                      title="Scan QR Code"
+                    >
+                      <Scan className="w-4 h-4" />
+                    </button>
+                    <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-0.5"></div>
+                    <button 
+                      className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          setTargetPeerId(text);
+                        } catch (err) {
+                          console.error("Paste failed", err);
+                        }
+                      }}
+                      title="Paste ID"
+                    >
+                      <Zap className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
                 <Button 
@@ -417,6 +445,15 @@ const App: React.FC = () => {
             config={aiConfig} 
             onSave={handleSaveAiConfig} 
             onClose={() => setIsSettingsOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isScanning && (
+          <QrScanner 
+            onScan={handleScan} 
+            onClose={() => setIsScanning(false)} 
           />
         )}
       </AnimatePresence>

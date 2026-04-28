@@ -46,7 +46,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
     }
   }, [incomingCall]);
 
-  const answerCall = () => {
+  const answerCall = async () => {
     if (!incomingCall) return;
     
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -54,20 +54,48 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
       return;
     }
     
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        setLocalStream(stream);
-        incomingCall.answer(stream);
-        setActiveCall(incomingCall);
-
-        incomingCall.on('stream', (remoteStream) => {
-          setRemoteStream(remoteStream);
-        });
-      })
-      .catch(err => {
-          console.error("Failed to get local stream", err);
-          endCall();
+    try {
+      // Try to get both video and audio first
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, 
+        audio: true 
       });
+      setLocalStream(stream);
+      incomingCall.answer(stream);
+      setActiveCall(incomingCall);
+
+      incomingCall.on('stream', (remoteStream) => {
+        setRemoteStream(remoteStream);
+      });
+    } catch (err: any) {
+      console.error("Failed to get local stream", err);
+      
+      let errorMsg = "Could not access camera or microphone.";
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMsg = "Permission denied. Please allow camera and microphone access. If you don't see a prompt, try opening the app in a new tab.";
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        // Hardware missing, try with just what's available
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          setLocalStream(stream);
+          incomingCall.answer(stream);
+          setActiveCall(incomingCall);
+          incomingCall.on('stream', (remoteStream) => {
+            setRemoteStream(remoteStream);
+          });
+          alert("Camera not found. Continuing with audio only.");
+          return;
+        } catch (audioErr) {
+          errorMsg = "No camera or microphone found on your device.";
+        }
+      } else {
+        errorMsg = `Media Error: ${err.message || err.name}`;
+      }
+      
+      alert(errorMsg);
+      rejectCall();
+    }
   };
 
   const rejectCall = () => {
@@ -75,7 +103,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
       onCallEnd();
   };
 
-  const startCall = () => {
+  const startCall = async () => {
     if (!remotePeerId) return;
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -83,19 +111,48 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
       return;
     }
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        setLocalStream(stream);
-        const newCall = peer.call(remotePeerId, stream);
-        setActiveCall(newCall);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, 
+        audio: true 
+      });
+      setLocalStream(stream);
+      const newCall = peer.call(remotePeerId, stream);
+      setActiveCall(newCall);
 
-        newCall.on('stream', (remoteStream) => {
-          setRemoteStream(remoteStream);
-        });
+      newCall.on('stream', (remoteStream) => {
+        setRemoteStream(remoteStream);
+      });
 
-        newCall.on('close', () => endCall());
-      })
-      .catch(err => console.error("Failed to get local stream", err));
+      newCall.on('close', () => endCall());
+    } catch (err: any) {
+      console.error("Failed to get local stream", err);
+      
+      let errorMsg = "Could not access camera or microphone.";
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMsg = "Permission denied. Please allow camera/microphone access. If you don't see a prompt, try opening the app in a new tab.";
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          try {
+              const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+              setLocalStream(stream);
+              const newCall = peer.call(remotePeerId, stream);
+              setActiveCall(newCall);
+              newCall.on('stream', (remoteStream) => {
+                  setRemoteStream(remoteStream);
+              });
+              newCall.on('close', () => endCall());
+              alert("Camera not found. Continuing with audio only.");
+              return;
+          } catch (audioErr) {
+              errorMsg = "No camera or microphone found on your device.";
+          }
+      } else {
+        errorMsg = `Media Error: ${err.message || err.name}`;
+      }
+      
+      alert(errorMsg);
+    }
   };
 
   const endCall = () => {
