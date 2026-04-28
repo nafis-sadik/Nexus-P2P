@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'info'>('chat');
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
     const saved = localStorage.getItem('nexus-ai-config');
     return saved ? JSON.parse(saved) : null;
@@ -141,6 +142,19 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const disconnect = () => {
+    if (dataConnection) {
+      dataConnection.close();
+      setDataConnection(null);
+    }
+    setPeerState(prev => ({ 
+      ...prev, 
+      connectedPeerId: null, 
+      isConnectionOpen: false 
+    }));
+    setMessages([]);
+  };
+
   if (!user) {
     return <Login onLogin={setUser} />;
   }
@@ -151,19 +165,19 @@ const App: React.FC = () => {
       <motion.nav 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-50 transition-colors duration-300"
+        className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-3 md:px-6 sticky top-0 z-50 transition-colors duration-300"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <motion.div 
             whileHover={{ rotate: 180 }}
             transition={{ duration: 0.5 }}
-            className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20"
+            className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 flex-shrink-0"
           >
-            <Zap className="text-white w-6 h-6 fill-white" />
+            <Zap className="text-white w-5 h-5 md:w-6 md:h-6 fill-white" />
           </motion.div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white uppercase">Nexus P2P</h1>
-            <p className="text-[9px] font-mono text-blue-600 dark:text-blue-400 tracking-[0.3em] uppercase opacity-70">Secure Connection</p>
+          <div className="min-w-0">
+            <h1 className="text-sm md:text-lg font-bold tracking-tight text-slate-900 dark:text-white uppercase truncate">Nexus P2P</h1>
+            <p className="text-[7px] md:text-[9px] font-mono text-blue-600 dark:text-blue-400 tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-70 truncate">Secure Connection</p>
           </div>
         </div>
 
@@ -189,24 +203,62 @@ const App: React.FC = () => {
           </div>
           <motion.div 
             whileHover={{ scale: 1.1 }}
-            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm"
+            className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm flex-shrink-0"
           >
             <img src={user.avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
           </motion.div>
-          <Button variant="ghost" className="p-2 hover:bg-red-500/10 group border-none" onClick={() => window.location.reload()}>
-            <LogOut className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
+          <Button 
+            variant="ghost" 
+            className="px-2 md:px-4 h-10 md:h-11 hover:bg-red-500/10 group border-none flex items-center gap-2 transition-all duration-300 rounded-xl" 
+            onClick={() => {
+              if (peerInstance) {
+                  peerInstance.destroy();
+                  setPeerInstance(null);
+              }
+              setUser(null);
+            }}
+          >
+            <LogOut className="w-4 h-4 md:w-5 md:h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
+            <span className="text-[10px] md:text-xs font-bold text-red-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest">Logout</span>
           </Button>
         </div>
       </motion.nav>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row p-4 md:p-6 gap-4 md:gap-6 max-w-[1600px] mx-auto w-full md:h-[calc(100vh-64px)] overflow-y-auto md:overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row p-3 md:p-6 gap-3 md:gap-6 max-w-[1600px] mx-auto w-full h-[calc(100vh-64px)] overflow-hidden">
         
+        {/* Mobile View Switcher */}
+        {peerState.isConnectionOpen && (
+          <div className="md:hidden flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 mb-1 flex-shrink-0 shadow-sm transition-colors duration-300">
+            <button 
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'chat' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            >
+              <Bot className="w-4 h-4" />
+              Chat
+            </button>
+            <button 
+              onClick={() => setActiveTab('video')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'video' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            >
+              <Zap className="w-4 h-4" />
+              Video
+            </button>
+            <button 
+              onClick={() => setActiveTab('info')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'info' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Status
+            </button>
+          </div>
+        )}
+
         {/* Left Sidebar - Connection Controls */}
         <motion.aside 
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="w-full md:w-80 flex flex-col gap-4 md:gap-6 flex-shrink-0 md:h-full md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar"
+          className={`w-full md:w-80 flex flex-col gap-4 md:gap-6 flex-shrink-0 md:h-full md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar ${peerState.isConnectionOpen && activeTab !== 'info' && 'hidden md:flex'}`}
         >
           {/* Status Card */}
           <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl relative group transition-all duration-300">
@@ -347,9 +399,18 @@ const App: React.FC = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-6 bg-green-500/5 rounded-xl border border-green-500/10 shadow-inner"
                 >
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full mx-auto mb-3 shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse"></div>
-                  <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase">Private Link Active</p>
-                  <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-2 truncate px-4">{peerState.connectedPeerId}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase text-left">Private Link Active</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-1 truncate">{peerState.connectedPeerId}</p>
+                    </div>
+                    <button 
+                      onClick={disconnect}
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all border border-red-500/20"
+                    >
+                      End Connection
+                    </button>
+                  </div>
                 </motion.div>
             )}
           </section>
@@ -384,7 +445,7 @@ const App: React.FC = () => {
         </motion.aside>
 
         {/* Center Panel - Interaction */}
-        <div className="flex-1 flex flex-col h-full min-w-0 min-h-0">
+        <div className={`flex-1 flex flex-col h-full min-w-0 min-h-0 ${peerState.isConnectionOpen && activeTab !== 'chat' && 'hidden md:flex'}`}>
           {!peerState.isConnectionOpen ? (
              <div className="flex-1 flex items-center justify-center bg-slate-950/20 rounded-3xl border border-dashed border-slate-800 relative group">
                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 rounded-3xl" />
@@ -407,7 +468,7 @@ const App: React.FC = () => {
             <motion.section
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="h-full min-h-0 flex flex-col"
+              className="flex-1 min-h-0 flex flex-col"
             >
               <ChatInterface 
                 connection={dataConnection} 
@@ -426,7 +487,7 @@ const App: React.FC = () => {
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="w-full md:w-80 h-full flex flex-col gap-6 flex-shrink-0 min-h-0"
+            className={`w-full md:w-80 h-full flex flex-col gap-6 flex-shrink-0 min-h-0 ${activeTab !== 'video' && 'hidden md:flex'}`}
           >
             <VideoInterface 
               peer={peerInstance!} 
