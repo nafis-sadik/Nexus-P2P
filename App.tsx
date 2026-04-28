@@ -7,9 +7,10 @@ import Button from './components/Button';
 import ThemeToggle from './components/ThemeToggle';
 import AiSettings from './components/AiSettings';
 import { UserProfile, ChatMessage, PeerState, AiConfig } from './types';
-import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot } from 'lucide-react';
+import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot, QrCode, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { copyToClipboard } from './utils';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [incomingCall, setIncomingCall] = useState<MediaConnection | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
     const saved = localStorage.getItem('nexus-ai-config');
     return saved ? JSON.parse(saved) : null;
@@ -119,6 +121,19 @@ const App: React.FC = () => {
     setIsSettingsOpen(false);
   };
 
+  const downloadQrCode = () => {
+    const canvas = document.getElementById('peer-qr-code') as HTMLCanvasElement;
+    if (!canvas) return;
+    
+    const url = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nexus-p2p-id-${peerState.myId.slice(0, 8)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!user) {
     return <Login onLogin={setUser} />;
   }
@@ -200,24 +215,64 @@ const App: React.FC = () => {
                 <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">Your Personal ID</p>
                 <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
                   <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.myId || 'GENERATING ID...'}</p>
-                  <button 
-                    onClick={copyId}
-                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
-                  >
-                    <AnimatePresence mode="wait">
-                      {copied ? (
-                        <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                          <Check className="w-4 h-4 text-green-500" />
-                        </motion.div>
-                      ) : (
-                        <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                          <Copy className="w-4 h-4" />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </button>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => setShowQr(!showQr)}
+                      className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
+                      title={showQr ? "Hide QR Code" : "Show QR Code"}
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={copyId}
+                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+                      title="Copy ID"
+                    >
+                      <AnimatePresence mode="wait">
+                        {copied ? (
+                          <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                            <Check className="w-4 h-4 text-green-500" />
+                          </motion.div>
+                        ) : (
+                          <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                            <Copy className="w-4 h-4" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              <AnimatePresence>
+                {showQr && peerState.myId && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex flex-col items-center gap-4 bg-slate-50 dark:bg-black/20 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <QRCodeCanvas 
+                          id="peer-qr-code"
+                          value={peerState.myId} 
+                          size={160}
+                          level="H"
+                          includeMargin={true}
+                        />
+                      </div>
+                      <button 
+                        onClick={downloadQrCode}
+                        className="flex items-center gap-2 text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                      >
+                        <Download className="w-3 h-3" />
+                        Download QR
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
               <div className="flex items-center justify-between text-[10px] pt-1">
                 <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">Status</span>

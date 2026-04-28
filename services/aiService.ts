@@ -2,8 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 import { ChatMessage, MessageType, AiConfig } from '../types';
 
 const callGemini = async (prompt: string, config: AiConfig) => {
-  const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Gemini API key missing");
+  const apiKey = config.apiKey;
+  if (!apiKey) throw new Error("Gemini API key missing. Please configure it in AI Settings.");
   
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
