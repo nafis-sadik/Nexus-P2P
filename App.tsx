@@ -193,24 +193,24 @@ const App: React.FC = () => {
       </motion.nav>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row p-6 gap-6 max-w-[1600px] mx-auto w-full h-[calc(100vh-64px)] overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row p-4 md:p-6 gap-4 md:gap-6 max-w-[1600px] mx-auto w-full md:h-[calc(100vh-64px)] overflow-y-auto md:overflow-hidden">
         
         {/* Left Sidebar - Connection Controls */}
         <motion.aside 
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="w-full md:w-80 flex flex-col gap-6 flex-shrink-0"
+          className="w-full md:w-80 flex flex-col gap-4 md:gap-6 flex-shrink-0 md:h-full md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar"
         >
           {/* Status Card */}
-          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group transition-all duration-300">
-            <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl relative group transition-all duration-300">
+            <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity overflow-hidden pointer-events-none">
                <ShieldCheck className="w-16 h-16 text-blue-400" />
             </div>
             <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5 flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full ${peerState.myId ? 'bg-blue-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
               Connection Info
             </h2>
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div>
                 <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">Your Personal ID</p>
                 <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
@@ -250,21 +250,22 @@ const App: React.FC = () => {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+                    className="overflow-visible"
                   >
-                    <div className="flex flex-col items-center gap-4 bg-slate-50 dark:bg-black/20 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                    <div className="flex flex-col items-center gap-2.5 bg-slate-50 dark:bg-black/20 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 mt-1">
+                      <div className="bg-white p-1.5 rounded-lg shadow-sm w-full max-w-[140px] aspect-square flex items-center justify-center">
                         <QRCodeCanvas 
                           id="peer-qr-code"
                           value={peerState.myId} 
-                          size={160}
-                          level="H"
+                          size={120}
+                          level="M"
                           includeMargin={true}
+                          style={{ width: '100%', height: '100%' }}
                         />
                       </div>
                       <button 
                         onClick={downloadQrCode}
-                        className="flex items-center gap-2 text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                        className="flex items-center gap-2 text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity pb-1"
                       >
                         <Download className="w-3 h-3" />
                         Download QR
