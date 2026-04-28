@@ -49,6 +49,11 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
   const answerCall = () => {
     if (!incomingCall) return;
     
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Camera and Microphone access is only available in secure contexts (HTTPS or localhost). Please check your connection or browser settings.");
+      return;
+    }
+    
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         setLocalStream(stream);
@@ -72,6 +77,12 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
 
   const startCall = () => {
     if (!remotePeerId) return;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Camera and Microphone access is only available in secure contexts (HTTPS or localhost). Please check your connection or browser settings.");
+      return;
+    }
+
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         setLocalStream(stream);
@@ -117,6 +128,9 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
     if (isScreenSharing) {
       // Stop screen share, revert to camera
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia not available");
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         const videoTrack = stream.getVideoTracks()[0];
         
@@ -139,6 +153,10 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
     } else {
       // Start screen share
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            alert("Screen sharing is not available in this browser or context.");
+            return;
+        }
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const screenTrack = stream.getVideoTracks()[0];
 
