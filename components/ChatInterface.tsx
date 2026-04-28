@@ -4,6 +4,7 @@ import { ChatMessage, MessageType, UserProfile, AiConfig } from '../types';
 import Button from './Button';
 import { Send, Paperclip, FileText, Download, Sparkles, Bot } from 'lucide-react';
 import * as aiService from '../services/aiService';
+import { generateUUID } from '../utils';
 
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -44,7 +45,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
     if (!text.trim() || !connection) return;
 
     const msg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       senderId: currentUser.id,
       senderName: currentUser.name,
       content: text,
@@ -71,7 +72,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
     }
 
     const msg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       senderId: currentUser.id,
       senderName: currentUser.name,
       content: file.name,
@@ -140,7 +141,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
         
         // Add as a local system message just for this user
         const msg: ChatMessage = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             senderId: 'ai-bot',
             senderName: `${aiConfig?.provider ? aiConfig.provider.toUpperCase() : 'Nexus'} AI`,
             content: summary,

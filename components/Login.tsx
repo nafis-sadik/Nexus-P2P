@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import Button from './Button';
 import { Monitor, Share2, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
+import { generateUUID } from '../utils';
 
 interface LoginProps {
   onLogin: (user: UserProfile) => void;
@@ -17,7 +18,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     // Simulate API call with provider-specific mock data
     setTimeout(() => {
       let mockUser: UserProfile = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: `User-${Math.floor(Math.random() * 1000)}`,
         avatarUrl: `https://picsum.photos/200/200?random=${Math.floor(Math.random() * 1000)}`
       };
