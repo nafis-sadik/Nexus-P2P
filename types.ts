@@ -8,8 +8,10 @@ export interface ChatMessage {
   id: string;
   senderId: string;
   senderName: string;
-  content: string; // Text content or File metadata (name, type, size)
-  fileData?: string; // Base64 data for files
+  content: string; // Text content or File metadata (name)
+  fileData?: string | Blob; // Base64 data or Blob for larger files
+  fileType?: string; // e.g. image/png
+  fileSize?: number; // bytes
   type: MessageType;
   timestamp: number;
 }

@@ -62,42 +62,53 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
     const file = e.target.files?.[0];
     if (!file || !connection) return;
 
-    // Safety check for WebRTC data channel limits (simplistic implementation)
-    // 500KB limit to be safe for Chrome without chunking logic
-    if (file.size > 500 * 1024) {
-        alert("File too large. For this demo, please select files under 500KB.");
+    // Increased limit to 2GB as requested
+    const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+    if (file.size > MAX_SIZE) {
+        alert("File too large. Maximum size is 2GB.");
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Data = event.target?.result as string;
-      const msg: ChatMessage = {
-        id: crypto.randomUUID(),
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        content: file.name, // Display name
-        fileData: base64Data,
-        type: MessageType.FILE,
-        timestamp: Date.now()
-      };
-      
-      connection.send(msg);
-      onSendMessage(msg);
+    const msg: ChatMessage = {
+      id: crypto.randomUUID(),
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      content: file.name,
+      fileData: file, // Send File object directly (PeerJS handles this better than base64)
+      fileType: file.type,
+      fileSize: file.size,
+      type: MessageType.FILE,
+      timestamp: Date.now()
     };
-    reader.readAsDataURL(file);
+    
+    connection.send(msg);
+    onSendMessage(msg);
+    
     // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const downloadFile = (dataUrl: string, fileName: string) => {
+  const downloadFile = (data: string | Blob | ArrayBuffer, fileName: string) => {
+    let url: string;
+    if (typeof data === 'string') {
+      url = data;
+    } else {
+      const blob = data instanceof Blob ? data : new Blob([data]);
+      url = URL.createObjectURL(blob);
+    }
+    
     const link = document.createElement('a');
-    link.href = dataUrl;
+    link.href = url;
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // Revoke object URL if it was created
+    if (typeof data !== 'string') {
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
   };
 
   const handleAiSuggestions = async () => {
@@ -212,7 +223,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
                         </div>
                         <div className="overflow-hidden flex-1">
                         <p className="font-medium text-xs truncate text-slate-900 dark:text-slate-100">{msg.content}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Encrypted File</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                          {msg.fileSize ? `${(msg.fileSize / (1024 * 1024)).toFixed(2)} MB` : 'Encrypted File'}
+                        </p>
                         </div>
                         {msg.fileData && (
                         <button 
@@ -277,7 +290,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-            title="Send File"
+            title="Send File (Max 2GB)"
           >
             <Paperclip className="w-6 h-6" />
           </button>
