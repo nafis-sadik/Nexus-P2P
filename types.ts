@@ -20,6 +20,15 @@ export interface UserProfile {
   avatarUrl: string;
 }
 
+export type AiProvider = 'gemini' | 'ollama' | 'openrouter';
+
+export interface AiConfig {
+  provider: AiProvider;
+  apiKey?: string;
+  baseUrl?: string;
+  modelName?: string;
+}
+
 export interface PeerState {
   myId: string;
   connectedPeerId: string | null;

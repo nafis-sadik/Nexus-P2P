@@ -102,7 +102,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             transition={{ delay: 0.4 }}
             className="text-slate-500 dark:text-slate-400 font-mono text-[10px] tracking-widest uppercase"
           >
-            Secure Decentralized Intelligence
+            Secure Private Communication
           </motion.p>
         </div>
 

@@ -5,8 +5,9 @@ import ChatInterface from './components/ChatInterface';
 import VideoInterface from './components/VideoInterface';
 import Button from './components/Button';
 import ThemeToggle from './components/ThemeToggle';
-import { UserProfile, ChatMessage, PeerState } from './types';
-import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio } from 'lucide-react';
+import AiSettings from './components/AiSettings';
+import { UserProfile, ChatMessage, PeerState, AiConfig } from './types';
+import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Radio, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
@@ -24,6 +25,11 @@ const App: React.FC = () => {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [incomingCall, setIncomingCall] = useState<MediaConnection | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
+    const saved = localStorage.getItem('nexus-ai-config');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   // Initialize PeerJS when user logs in
   useEffect(() => {
@@ -104,12 +110,18 @@ const App: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSaveAiConfig = (config: AiConfig) => {
+    setAiConfig(config);
+    localStorage.setItem('nexus-ai-config', JSON.stringify(config));
+    setIsSettingsOpen(false);
+  };
+
   if (!user) {
     return <Login onLogin={setUser} />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300">
+    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300 overflow-hidden">
       {/* Navigation */}
       <motion.nav 
         initial={{ y: -20, opacity: 0 }}
@@ -125,8 +137,8 @@ const App: React.FC = () => {
             <Zap className="text-white w-6 h-6 fill-white" />
           </motion.div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white uppercase">Nexus-P2P</h1>
-            <p className="text-[9px] font-mono text-blue-600 dark:text-blue-400 tracking-[0.3em] uppercase opacity-70">Decentralized_Node</p>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white uppercase">Nexus P2P</h1>
+            <p className="text-[9px] font-mono text-blue-600 dark:text-blue-400 tracking-[0.3em] uppercase opacity-70">Secure Connection</p>
           </div>
         </div>
 
@@ -135,9 +147,20 @@ const App: React.FC = () => {
           
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
 
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className={`p-2 rounded-xl transition-all flex items-center gap-2 ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            title="AI Settings"
+          >
+            <Bot className="w-5 h-5" />
+            <span className="text-xs font-semibold hidden lg:block">{aiConfig ? 'AI READY' : 'SETUP AI'}</span>
+          </button>
+          
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
+
           <div className="hidden md:flex flex-col items-end mr-1">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user.name}</span>
-            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Auth_Identity</span>
+            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">My Account</span>
           </div>
           <motion.div 
             whileHover={{ scale: 1.1 }}
@@ -167,13 +190,13 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5 flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full ${peerState.myId ? 'bg-blue-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
-              Local_Node_Telemetry
+              Connection Info
             </h2>
             <div className="space-y-5">
               <div>
-                <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">Universal_Peer_ID</p>
+                <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">Your Personal ID</p>
                 <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
-                  <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.myId || 'GENERATING_HASH...'}</p>
+                  <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.myId || 'GENERATING ID...'}</p>
                   <button 
                     onClick={copyId}
                     className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
@@ -194,7 +217,7 @@ const App: React.FC = () => {
               </div>
               
               <div className="flex items-center justify-between text-[10px] pt-1">
-                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">transport_state</span>
+                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">Status</span>
                 <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
                   peerState.isConnectionOpen ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 
                   peerState.connectionError ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20' : 
@@ -208,13 +231,13 @@ const App: React.FC = () => {
 
           {/* Connection Trigger Card */}
           <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
-            <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Initialize_Uplink</h2>
+            <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Start Connection</h2>
             {!peerState.isConnectionOpen ? (
               <div className="space-y-4">
                 <div className="relative">
                   <input 
                     type="text"
-                    placeholder="TARGET_NODE_HASH"
+                    placeholder="PASTE FRIEND'S ID"
                     value={targetPeerId}
                     onChange={(e) => setTargetPeerId(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
@@ -228,7 +251,7 @@ const App: React.FC = () => {
                   disabled={!targetPeerId || !peerState.myId}
                   className="w-full py-6 rounded-xl bg-blue-600 hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 font-bold tracking-[0.2em] text-[10px] uppercase group"
                 >
-                   {peerState.connectionError ? 'RETRY_HANDSHAKE' : 'INITIATE_HANDSHAKE'}
+                   {peerState.connectionError ? 'RETRY CALL' : 'START CALL'}
                 </Button>
               </div>
             ) : (
@@ -238,7 +261,7 @@ const App: React.FC = () => {
                   className="text-center py-6 bg-green-500/5 rounded-xl border border-green-500/10 shadow-inner"
                 >
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full mx-auto mb-3 shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse"></div>
-                  <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase">Transmission_Active</p>
+                  <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase">Private Link Active</p>
                   <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-2 truncate px-4">{peerState.connectedPeerId}</p>
                 </motion.div>
             )}
@@ -255,26 +278,26 @@ const App: React.FC = () => {
                <Sparkles className="w-4 h-4 text-indigo-400" />
              </div>
              <div>
-                <p className="text-[10px] font-mono text-indigo-400 uppercase font-bold mb-1 tracking-widest">Cognitive_Engine</p>
-                <p className="text-[10px] text-slate-500 leading-relaxed font-medium">Gemini AI is ready for sequence summarization and intelligent response generation.</p>
+                <p className="text-[10px] font-mono text-indigo-400 uppercase font-bold mb-1 tracking-widest">AI Tools</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed font-medium">AI assistants are available for chat summaries and instant smart replies.</p>
              </div>
           </motion.div>
 
           {/* Quick Stats */}
           <div className="mt-auto p-4 border border-slate-800 rounded-2xl opacity-50 space-y-2">
              <div className="flex justify-between text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                <span>Latency</span>
+                <span>Delay</span>
                 <span className="text-blue-500">24ms</span>
              </div>
              <div className="flex justify-between text-[8px] font-mono text-slate-500 uppercase tracking-widest">
                 <span>Network</span>
-                <span className="text-blue-500">P2P_MESH</span>
+                <span className="text-blue-500">Direct P2P</span>
              </div>
           </div>
         </motion.aside>
 
         {/* Center Panel - Interaction */}
-        <div className="flex-1 flex flex-col gap-6 h-full min-w-0">
+        <div className="flex-1 flex flex-col h-full min-w-0 min-h-0">
           {!peerState.isConnectionOpen ? (
              <div className="flex-1 flex items-center justify-center bg-slate-950/20 rounded-3xl border border-dashed border-slate-800 relative group">
                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 rounded-3xl" />
@@ -289,43 +312,55 @@ const App: React.FC = () => {
                    >
                      <Radio className="w-10 h-10 text-blue-500 opacity-30 shadow-2xl" />
                    </motion.div>
-                   <h3 className="text-xl font-bold text-slate-200 mb-2 tracking-tight">System_Standby</h3>
-                   <p className="text-slate-500 text-xs leading-relaxed font-mono max-w-[280px]">Node is awaiting a valid hand-shake. Distribute your hash signature to establish a secure link.</p>
+                   <h3 className="text-xl font-bold text-slate-200 mb-2 tracking-tight">Waiting for Peer</h3>
+                   <p className="text-slate-500 text-xs leading-relaxed font-mono max-w-[280px]">Your connection is ready. Share your ID with a friend to start a secure conversation.</p>
                 </div>
              </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full p-1 overflow-hidden">
-              <motion.section
-                initial={{ scale: 0.98, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="h-full min-h-0"
-              >
-                <ChatInterface 
-                  connection={dataConnection} 
-                  currentUser={user}
-                  messages={messages}
-                  onSendMessage={handleSendMessage}
-                />
-              </motion.section>
-              
-              <motion.section 
-                initial={{ scale: 0.98, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                className="h-full min-h-0"
-              >
-                <VideoInterface 
-                  peer={peerInstance!} 
-                  remotePeerId={peerState.connectedPeerId!} 
-                  incomingCall={incomingCall}
-                  onCallEnd={() => setIncomingCall(null)}
-                />
-              </motion.section>
-            </div>
+            <motion.section
+              initial={{ scale: 0.98, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="h-full min-h-0 flex flex-col"
+            >
+              <ChatInterface 
+                connection={dataConnection} 
+                currentUser={user}
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                aiConfig={aiConfig}
+              />
+            </motion.section>
           )}
         </div>
 
+        {/* Right Panel - Video Feed */}
+        {peerState.isConnectionOpen && (
+          <motion.aside 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="w-full md:w-80 h-full flex flex-col gap-6 flex-shrink-0 min-h-0"
+          >
+            <VideoInterface 
+              peer={peerInstance!} 
+              remotePeerId={peerState.connectedPeerId!} 
+              incomingCall={incomingCall}
+              onCallEnd={() => setIncomingCall(null)}
+            />
+          </motion.aside>
+        )}
+
       </main>
+
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <AiSettings 
+            config={aiConfig} 
+            onSave={handleSaveAiConfig} 
+            onClose={() => setIsSettingsOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

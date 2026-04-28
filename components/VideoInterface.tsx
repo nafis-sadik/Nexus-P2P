@@ -166,9 +166,9 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 relative transition-colors duration-300">
       <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
         <h3 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-           <Activity className="w-4 h-4 text-emerald-500" /> video_feed
+           <Activity className="w-4 h-4 text-emerald-500" /> Video Feed
         </h3>
-        {activeCall && <div className="text-[10px] font-mono text-emerald-500 animate-pulse uppercase font-bold tracking-widest">Live_Transmission</div>}
+        {activeCall && <div className="text-[10px] font-mono text-emerald-500 animate-pulse uppercase font-bold tracking-widest">In Call</div>}
       </div>
 
       <div className="relative flex-1 bg-slate-100 dark:bg-black overflow-hidden">
@@ -201,18 +201,18 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
                       >
                         <PhoneIncoming className="w-12 h-12 text-white" />
                       </motion.div>
-                      <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">Incoming Transmission</h3>
+                      <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">Incoming Call</h3>
                       <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-2 font-mono uppercase tracking-widest bg-blue-50 dark:bg-blue-400/10 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-400/20">{incomingCall.peer}</p>
                   </div>
               ) : activeCall ? (
                   <div className="flex flex-col items-center gap-4">
                      <div className="w-3 h-3 bg-blue-600 rounded-full animate-ping" />
-                     <p className="font-mono text-[10px] tracking-[0.3em] uppercase">Negotiating_Link...</p>
+                     <p className="font-mono text-[10px] tracking-[0.3em] uppercase">Connecting...</p>
                   </div>
               ) : (
                   <div className="flex flex-col items-center opacity-30">
                      <VideoIcon className="w-16 h-16 mb-4"/>
-                     <p className="font-mono text-[10px] tracking-[0.2em] uppercase">System_Ready_For_Feed</p>
+                     <p className="font-mono text-[10px] tracking-[0.2em] uppercase">Ready for Video</p>
                   </div>
               )}
             </motion.div>
@@ -236,7 +236,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
                 />
             ) : <div className="w-full h-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center"><VideoIcon className="w-6 h-6 text-slate-400 dark:text-slate-500 opacity-20"/></div>}
             {isVideoOff && <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500"><VideoOff className="w-8 h-8 opacity-40"/></div>}
-            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-[8px] font-mono text-slate-300 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">Local_Source</div>
+            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-[8px] font-mono text-slate-300 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">You</div>
             </motion.div>
         )}
       </div>
@@ -248,10 +248,10 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
         {incomingCall && !activeCall && (
             <div className="flex gap-4">
                 <Button onClick={answerCall} variant="primary" className="bg-emerald-600 hover:bg-emerald-500 rounded-full px-8 py-6 uppercase font-bold text-[10px] tracking-widest shadow-lg shadow-emerald-500/20">
-                    Answer_Link
+                    Answer
                 </Button>
                 <Button onClick={rejectCall} variant="danger" className="rounded-full px-8 py-6 uppercase font-bold text-[10px] tracking-widest border border-red-500/50 hover:bg-red-500/20">
-                    Abort
+                    Decline
                 </Button>
             </div>
         )}
