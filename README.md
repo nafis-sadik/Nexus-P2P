@@ -1,11 +1,32 @@
-<div align="center">
+# Nexus P2P
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A WebRTC Peer-to-Peer communication app with Chat, Video, Screen Sharing, and Gemini AI integration.
 
-  <h1>Built with AI Studio</h2>
+## How to Run
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+2.  **Setup Environment**:
+    Create a file named `.env` in the root directory and add your Google Gemini API Key:
+    ```
+    API_KEY=your_actual_api_key_here
+    ```
 
-</div>
+3.  **Run Development Server**:
+    ```bash
+    npm run dev
+    ```
+
+4.  **Open in Browser**:
+    Visit `http://localhost:5173`
+
+## Features
+
+*   **P2P Video/Voice**: Uses PeerJS (WebRTC) for direct browser-to-browser calls.
+*   **Screen Sharing**: Toggle between camera and screen share.
+*   **Secure Chat**: Direct peer-to-peer data connection.
+*   **File Sharing**: Send files directly to peers (size limit ~500KB for stability).
+*   **AI Integration**: Uses Gemini Flash 2.5 for Smart Replies and Conversation Summaries.

@@ -1,0 +1,9 @@
+{
+  "name": "Nexus P2P",
+  "description": "A comprehensive Peer-to-Peer communication platform featuring Chat, File Sharing, Voice/Video Calls, and Screen Sharing, enhanced with Gemini AI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
