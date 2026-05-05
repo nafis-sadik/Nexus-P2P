@@ -80,6 +80,16 @@ const App: React.FC = () => {
 
   const setupDataConnection = (conn: DataConnection) => {
     conn.on('open', () => {
+      // Safety check: Avoid duplicate connections for the same peer
+      if (dataConnectionsRef.current.has(conn.peer)) {
+        const existing = dataConnectionsRef.current.get(conn.peer);
+        if (existing && existing.open) {
+          console.warn(`Closing duplicate connection to peer ${conn.peer}`);
+          conn.close();
+          return;
+        }
+      }
+
       // Send our profile info immediately
       conn.send({ 
         type: 'SYSTEM', 
@@ -176,8 +186,12 @@ const App: React.FC = () => {
                 const alreadyConnected = dataConnectionsRef.current.has(p.id);
                 
                 if (!isMe && !alreadyConnected) {
-                  const newConn = peerInstance!.connect(p.id);
-                  setupDataConnection(newConn);
+                  // Lexicographical tie-breaker: Only the peer with the "smaller" ID initiates the connection.
+                  // This prevents both peers from connecting to each other simultaneously.
+                  if (prev.myId < p.id) {
+                    const newConn = peerInstance!.connect(p.id);
+                    setupDataConnection(newConn);
+                  }
                 }
               });
               return { ...prev, participants: updatedParticipants };
