@@ -15,13 +15,13 @@ When a user "Hosts" a meeting, their Peer ID becomes the **Room ID**. Guests joi
 Once a Guest receives the `PARTICIPANT_LIST` from the Host, they automatically attempt to establish direct P2P connections with all other participants. This creates a full-mesh data network for chat and a dynamic grid for media streams.
 
 ```mermaid
-graph TD
-    H[Host] <--> |Control/Relay| G1[Guest 1]
-    H <--> |Control/Relay| G2[Guest 2]
-    G1 <--> |Direct Mesh P2P| G2
-    H <--> |Direct Mesh P2P| G3[Guest 3]
-    G1 <--> |Direct Mesh P2P| G3
-    G2 <--> |Direct Mesh P2P| G3
+flowchart TD
+    H[Host] <-->|Control/Relay| G1[Guest 1]
+    H <-->|Control/Relay| G2[Guest 2]
+    G1 <-->|Direct Mesh P2P| G2
+    H <-->|Direct Mesh P2P| G3[Guest 3]
+    G1 <-->|Direct Mesh P2P| G3
+    G2 <-->|Direct Mesh P2P| G3
 ```
 
 ## 3. Peer Initialization
@@ -44,10 +44,11 @@ sequenceDiagram
     H->>P: PARTICIPANTS_UPDATE (New List)
     H->>G: PARTICIPANTS_UPDATE (Full List)
     Note over G,P: Peers detect new ID and connect()
-    G<->>P: Full Mesh P2P Established
+    G-->>P: Direct P2P Established
+    P-->>G: Direct P2P Established
 ```
 
-## 3. Data Communication (Chat)
+## 5. Data Communication (Chat)
 Data exchange (text messages, file metadata, system notifications) is handled through `DataConnection` objects.
 
 ### Connection Flow:
@@ -79,7 +80,7 @@ sequenceDiagram
 - **Event Listeners**: Both peers listen for `data`, `close`, and `error` events to update the UI state in real-time.
 - **System Messages**: When a peer disconnects, a system message is automatically appended to the chat log to inform the user.
 
-## 4. Media Communication (Video/Audio)
+## 6. Media Communication (Video/Audio)
 Real-time video and audio streams are handled via `MediaConnection` (calls).
 
 ### Communication Flow:
@@ -99,14 +100,14 @@ sequenceDiagram
 2. **Answering**: User B receives a `call` event, which triggers the `VideoInterface` component to show an "incoming call" overlay.
 3. **Streaming**: Once answered, both peers exchange `MediaStream` objects which are rendered in `<video>` elements.
 
-## 5. Security & Privacy
+## 7. Security & Privacy
 - **Direct Link**: After the initial signaling handshake, the data travels directly between browsers (unless a TURN server is required for NAT traversal, in which case it is encrypted in transit).
 - **No Persistence**: Messages and session data are stored only in React state and are lost upon page refresh or logout, ensuring no permanent trail on a server.
 - **Encrypted Transfers**: WebRTC natively provides end-to-end encryption for all data and media streams.
 
-## 6. Key Components
+## 8. Key Components
 ```mermaid
-graph TD
+flowchart TD
     App[App.tsx - Orchestrator] -->|Owns| P[Peer Instance]
     App -->|Manages| S[State: Messages, Connection]
     App --> CI[ChatInterface.tsx]
@@ -121,5 +122,5 @@ graph TD
 - **VideoInterface.tsx**: Manages `MediaStream` acquisition and rendering for calls.
 - **QrScanner/QRCodeCanvas**: Utilities to easily share and input Peer IDs.
 
-## 7. Configuration Defaults
+## 9. Configuration Defaults
 The project currently uses the default PeerJS configuration (connecting to the public PeerJS server). For production environments with strict firewalls, a custom TURN server configuration would be added to the `Peer` constructor options.

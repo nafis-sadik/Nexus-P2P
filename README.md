@@ -3,24 +3,34 @@
 A WebRTC Peer-to-Peer communication app with Chat, Video, Screen Sharing, and Gemini AI integration.
 
 ```mermaid
-mindmap
-  root((Nexus P2P))
-    Communication
-      Video/Voice Call
-      Screen Share
-      Secure Chat
-      File Sharing
-    Intelligence
-      Smart Replies
-      Summaries
-      AI Settings
-    Security
-      Direct P2P
-      No Persistence
-      Encrypted
-    Utilities
-      QR Sharing
-      Dark Mode
+flowchart TD
+    Root((Nexus P2P))
+    
+    Communication(Communication)
+    Intelligence(Intelligence)
+    Security(Security)
+    Utilities(Utilities)
+    
+    Root --- Communication
+    Root --- Intelligence
+    Root --- Security
+    Root --- Utilities
+    
+    Communication --- V[Video/Voice Call]
+    Communication --- SS[Screen Share]
+    Communication --- SC[Secure Chat]
+    Communication --- FS[File Sharing]
+    
+    Intelligence --- SR[Smart Replies]
+    Intelligence --- S[Summaries]
+    Intelligence --- AS[AI Settings]
+    
+    Security --- DP2P[Direct P2P]
+    Security --- NP[No Persistence]
+    Security --- E[Encrypted]
+    
+    Utilities --- QR[QR Sharing]
+    Utilities --- DM[Dark Mode]
 ```
 
 ## How to Run

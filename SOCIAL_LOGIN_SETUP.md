@@ -3,7 +3,7 @@
 This guide explains how to replace the current mock login system with real social authentication using Firebase.
 
 ```mermaid
-graph TD
+flowchart TD
     User[User] -->|Clicks Login| ProviderChoice{Provider?}
     ProviderChoice -->|Google| GoogleAuth[Google Auth Popup]
     ProviderChoice -->|GitHub| GitHubAuth[GitHub Auth Popup]
