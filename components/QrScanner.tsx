@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeCameraScanConfig } from 'html5-qrcode';
+import Swal from 'sweetalert2';
 import { X, Camera, RefreshCw } from 'lucide-react';
 
 interface QrScannerProps {
@@ -80,12 +81,22 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
           setSelectedCameraId(defaultId);
           await startScanner(defaultId);
         } else {
-          alert("No cameras found");
+          Swal.fire({
+            title: 'No Cameras',
+            text: 'No camera devices were found on this device.',
+            icon: 'error',
+            confirmButtonColor: '#4f46e5'
+          });
           onClose();
         }
       } catch (err) {
         console.error("Camera init error:", err);
-        alert("Could not access cameras. Please ensure permissions are granted.");
+        Swal.fire({
+          title: 'Permission Denied',
+          text: 'Could not access cameras. Please ensure permissions are granted in your browser settings.',
+          icon: 'error',
+          confirmButtonColor: '#4f46e5'
+        });
         onClose();
       } finally {
         setIsInitializing(false);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection, MediaConnection } from 'peerjs';
+import Swal from 'sweetalert2';
 import Login from './components/Login';
 import ChatInterface from './components/ChatInterface';
 import VideoInterface from './components/VideoInterface';
@@ -105,19 +106,34 @@ const App: React.FC = () => {
           const payload = JSON.parse(data.content);
           
           if (payload.action === 'REJECTED') {
-            alert("Connection rejected: " + payload.reason);
+            Swal.fire({
+              title: 'Connection Rejected',
+              text: payload.reason === 'FULL' ? 'The session is full.' : payload.reason,
+              icon: 'error',
+              confirmButtonColor: '#4f46e5'
+            });
             return;
           }
 
           if (payload.action === 'KICKED') {
-            alert("You have been kicked from the meeting by the host.");
             leaveMeeting();
+            Swal.fire({
+              title: 'Removed from Meeting',
+              text: 'The host has removed you from the meeting.',
+              icon: 'warning',
+              confirmButtonColor: '#4f46e5'
+            });
             return;
           }
 
           if (payload.action === 'ROOM_DESTROYED') {
-            alert("The host has ended the meeting.");
             leaveMeeting();
+            Swal.fire({
+              title: 'Meeting Ended',
+              text: 'The host has closed the meeting room.',
+              icon: 'info',
+              confirmButtonColor: '#4f46e5'
+            });
             return;
           }
 

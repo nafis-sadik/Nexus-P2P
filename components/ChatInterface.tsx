@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DataConnection } from 'peerjs';
 import { ChatMessage, MessageType, UserProfile, AiConfig } from '../types';
+import Swal from 'sweetalert2';
 import Button from './Button';
 import { Send, Paperclip, FileText, Download, Sparkles, Bot } from 'lucide-react';
 import * as aiService from '../services/aiService';
@@ -68,7 +69,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
     // Increased limit to 2GB as requested
     const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
     if (file.size > MAX_SIZE) {
-        alert("File too large. Maximum size is 2GB.");
+        Swal.fire({
+          title: 'File Too Large',
+          text: 'Maximum file size allowed is 2GB.',
+          icon: 'warning',
+          confirmButtonColor: '#3b82f6'
+        });
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
