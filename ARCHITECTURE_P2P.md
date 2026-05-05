@@ -3,24 +3,49 @@
 This document outlines the technical implementation of the Peer-to-Peer (P2P) communication system used in the Nexus P2P application.
 
 ## 1. Overview
-Nexus P2P uses **PeerJS**, a wrapper over the WebRTC API, to facilitate direct browser-to-browser communication without a centralized server handling the data or media streams (except for signaling).
+Nexus P2P uses **PeerJS**, a wrapper over the WebRTC API, to facilitate direct browser-to-browser communication in a multi-user, room-based architecture.
+
+## 2. Architecture: Guest-Host Room Model
+The application operates on a **Hybrid Star-Mesh Topology**. 
+
+### The Star Component (Signaling & Identity)
+When a user "Hosts" a meeting, their Peer ID becomes the **Room ID**. Guests join by connecting initially to the Host. The Host acts as the "Signaling Controller," broadcasting the updated participant list to all connected guests.
+
+### The Mesh Component (Data & Media)
+Once a Guest receives the `PARTICIPANT_LIST` from the Host, they automatically attempt to establish direct P2P connections with all other participants. This creates a full-mesh data network for chat and a dynamic grid for media streams.
 
 ```mermaid
-graph LR
-    A[Peer A] <--> |Signaling| S(PeerJS Signaling Server)
-    B[Peer B] <--> |Signaling| S
-    A <==> |Direct WebRTC Stream| B
+graph TD
+    H[Host] <--> |Control/Relay| G1[Guest 1]
+    H <--> |Control/Relay| G2[Guest 2]
+    G1 <--> |Direct Mesh P2P| G2
+    H <--> |Direct Mesh P2P| G3[Guest 3]
+    G1 <--> |Direct Mesh P2P| G3
+    G2 <--> |Direct Mesh P2P| G3
 ```
 
-## 2. Peer Initialization
-When a user "logs in" (provides a name and avatar), a `Peer` instance is initialized in `App.tsx`:
+## 3. Peer Initialization
+When a user logs in, a `Peer` instance is initialized in `App.tsx`.
 
-```typescript
-const newPeer = new Peer();
+- **Room ID**: In hosting mode, this is the user's own Peer ID.
+- **Join ID**: Guests enter the Room ID to initiate the first connection.
+
+## 4. Multi-User Communication Flow
+```mermaid
+sequenceDiagram
+    participant G as Guest (New)
+    participant H as Host
+    participant P as Existing Peers
+
+    G->>H: peer.connect(RoomID)
+    H->>G: IDENTITY (Host Info)
+    G->>H: IDENTITY (Guest Info)
+    H->>H: Update Local Participant List
+    H->>P: PARTICIPANTS_UPDATE (New List)
+    H->>G: PARTICIPANTS_UPDATE (Full List)
+    Note over G,P: Peers detect new ID and connect()
+    G<->>P: Full Mesh P2P Established
 ```
-
-- **Peer ID**: PeerJS automatically assigns a unique ID to the user if one isn't provided. This ID acts as the "address" for other peers to connect.
-- **Signaling**: The initial handshake (exchange of metadata like SDP and ICE candidates) is handled by the default PeerJS cloud signaling server.
 
 ## 3. Data Communication (Chat)
 Data exchange (text messages, file metadata, system notifications) is handled through `DataConnection` objects.

@@ -46,10 +46,12 @@ mindmap
 
 ## Features
 
-*   **P2P Video/Voice**: Uses PeerJS (WebRTC) for direct browser-to-browser calls.
+*   **Multi-User Room Support**: Host meetings or join existing ones via Room IDs.
+*   **Star-Mesh Topology**: Seamlessly connect with multiple participants in a single session.
+*   **P2P Video/Voice Grid**: Handles multiple video streams in a dynamic layout.
 *   **Screen Sharing**: Toggle between camera and screen share.
-*   **Secure Chat**: Direct peer-to-peer data connection.
-*   **File Sharing**: Send files directly to peers (size limit ~500KB for stability).
+*   **Secure Chat**: Full-mesh peer-to-peer data connection.
+*   **File Sharing**: Send files directly to peers (size limit 2GB).
 *   **AI Integration**: Uses Gemini Flash 2.5 for Smart Replies and Conversation Summaries.
 
 ## Documentation

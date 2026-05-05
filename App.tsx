@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection, MediaConnection } from 'peerjs';
 import Login from './components/Login';
 import ChatInterface from './components/ChatInterface';
@@ -18,24 +18,22 @@ const App: React.FC = () => {
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [peerState, setPeerState] = useState<PeerState>({
     myId: '',
-    connectedPeerId: null,
-    isConnectionOpen: false,
+    roomId: null,
+    isHost: false,
+    participants: [],
     connectionError: null
   });
   
-  const [dataConnection, setDataConnection] = useState<DataConnection | null>(null);
+  const [dataConnections, setDataConnections] = useState<Map<string, DataConnection>>(new Map());
+  const dataConnectionsRef = useRef<Map<string, DataConnection>>(new Map<string, DataConnection>());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [targetPeerId, setTargetPeerId] = useState('');
+  const [targetRoomId, setTargetRoomId] = useState('');
   const [incomingCall, setIncomingCall] = useState<MediaConnection | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'info'>('chat');
-  const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
-    const saved = localStorage.getItem('nexus-ai-config');
-    return saved ? JSON.parse(saved) : null;
-  });
 
   // Initialize PeerJS when user logs in
   useEffect(() => {
@@ -47,7 +45,7 @@ const App: React.FC = () => {
       });
 
       newPeer.on('connection', (conn) => {
-        handleDataConnection(conn);
+        setupDataConnection(conn);
       });
 
       newPeer.on('call', (call) => {
@@ -62,56 +60,157 @@ const App: React.FC = () => {
     }
   }, [user, peerInstance]);
 
-  const handleDataConnection = (conn: DataConnection) => {
-    setDataConnection(conn);
-    setPeerState(prev => ({ 
-      ...prev, 
-      connectedPeerId: conn.peer, 
-      isConnectionOpen: true 
-    }));
+  const setupDataConnection = (conn: DataConnection) => {
+    conn.on('open', () => {
+      // Send our profile info immediately
+      conn.send({ 
+        type: 'SYSTEM', 
+        content: JSON.stringify({ action: 'IDENTITY', user }), 
+        senderId: user!.id 
+      });
+      
+      const newMap = new Map<string, DataConnection>(dataConnectionsRef.current).set(conn.peer, conn);
+      dataConnectionsRef.current = newMap;
+      setDataConnections(newMap);
+    });
 
     conn.on('data', (data: any) => {
-      const msg = data as ChatMessage;
-      setMessages(prev => [...prev, msg]);
+      if (data.type === 'SYSTEM') {
+        try {
+          const payload = JSON.parse(data.content);
+          
+          if (payload.action === 'IDENTITY') {
+            const remoteUser = payload.user;
+            setPeerState(prev => {
+              const exists = prev.participants.find(p => p.id === remoteUser.id);
+              if (exists) return prev;
+              
+              const newParticipants = [...prev.participants, remoteUser];
+
+              // IF I AM HOST, broadcast this new user to everyone else
+              if (prev.isHost) {
+                broadcastSystemMessage({
+                  action: 'PARTICIPANTS_UPDATE',
+                  participants: newParticipants
+                });
+              }
+
+              return { ...prev, participants: newParticipants };
+            });
+          }
+
+          if (payload.action === 'PARTICIPANTS_UPDATE') {
+            const updatedParticipants = payload.participants;
+            setPeerState(prev => {
+              // Connect to new peers we don't have connections with yet
+              updatedParticipants.forEach((p: any) => {
+                const isMe = p.id === user!.id || p.id === peerInstance!.id;
+                const alreadyConnected = dataConnectionsRef.current.has(p.id);
+                
+                if (!isMe && !alreadyConnected) {
+                  const newConn = peerInstance!.connect(p.id);
+                  setupDataConnection(newConn);
+                }
+              });
+              return { ...prev, participants: updatedParticipants };
+            });
+          }
+        } catch (e) {
+          console.error("System message parse error", e);
+        }
+      } else {
+        setMessages(prev => [...prev, data as ChatMessage]);
+      }
     });
 
     conn.on('close', () => {
-      setPeerState(prev => ({ 
-        ...prev, 
-        connectedPeerId: null, 
-        isConnectionOpen: false 
+      const newMap = new Map<string, DataConnection>(dataConnectionsRef.current);
+      newMap.delete(conn.peer);
+      dataConnectionsRef.current = newMap;
+      setDataConnections(newMap);
+      
+      setPeerState(prev => ({
+        ...prev,
+        participants: prev.participants.filter(p => p.id !== conn.peer)
       }));
-      setDataConnection(null);
-      setMessages(prev => [...prev, {
-        id: 'sys-disconnect',
-        senderId: 'system',
-        senderName: 'System',
-        content: 'Peer disconnected.',
-        type: 'SYSTEM' as any,
-        timestamp: Date.now()
-      }]);
     });
   };
 
-  const connectToPeer = () => {
-    if (!peerInstance || !targetPeerId) return;
+  const broadcastSystemMessage = (payload: any) => {
+    const msg = {
+      type: 'SYSTEM',
+      content: JSON.stringify(payload),
+      senderId: user!.id,
+      timestamp: Date.now()
+    };
+    dataConnectionsRef.current.forEach((conn: DataConnection) => conn.send(msg));
+  };
+
+  const hostMeeting = () => {
+    if (!peerState.myId) return;
+    setPeerState(prev => ({ 
+      ...prev, 
+      roomId: prev.myId, 
+      isHost: true,
+      participants: [user!] 
+    }));
+  };
+
+  const joinMeeting = () => {
+    if (!peerInstance || !targetRoomId) return;
     
-    const conn = peerInstance.connect(targetPeerId);
-    conn.on('open', () => {
-      handleDataConnection(conn);
-    });
-    conn.on('error', (err) => {
-      console.error("Connection Error", err);
-      setPeerState(prev => ({ ...prev, connectionError: "Could not connect to peer." }));
-    });
+    const conn = peerInstance.connect(targetRoomId);
+    setupDataConnection(conn);
+    setPeerState(prev => ({ ...prev, roomId: targetRoomId, isHost: false }));
   };
 
   const handleSendMessage = (msg: ChatMessage) => {
     setMessages(prev => [...prev, msg]);
+    dataConnectionsRef.current.forEach((conn: DataConnection) => conn.send(msg));
   };
 
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
+    const saved = localStorage.getItem('nexus-ai-config');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleScan = (decodedText: string) => {
+    setTargetRoomId(decodedText);
+    setIsScanning(false);
+  };
+
+  const downloadQrCode = () => {
+    const canvas = document.getElementById('peer-qr-code') as HTMLCanvasElement;
+    if (!canvas) return;
+    
+    const url = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nexus-room-id-${peerState.myId.slice(0, 8)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const leaveMeeting = () => {
+    dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
+    dataConnectionsRef.current = new Map<string, DataConnection>();
+    setDataConnections(new Map<string, DataConnection>());
+    setPeerState(prev => ({ 
+      ...prev, 
+      roomId: null, 
+      isHost: false,
+      participants: [] 
+    }));
+    setMessages([]);
+  };
+
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
+
   const copyId = async () => {
-    const success = await copyToClipboard(peerState.myId);
+    const success = await copyToClipboard(peerState.roomId || peerState.myId);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -124,40 +223,7 @@ const App: React.FC = () => {
     setIsSettingsOpen(false);
   };
 
-  const handleScan = (decodedText: string) => {
-    setTargetPeerId(decodedText);
-    setIsScanning(false);
-  };
-
-  const downloadQrCode = () => {
-    const canvas = document.getElementById('peer-qr-code') as HTMLCanvasElement;
-    if (!canvas) return;
-    
-    const url = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nexus-p2p-id-${peerState.myId.slice(0, 8)}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const disconnect = () => {
-    if (dataConnection) {
-      dataConnection.close();
-      setDataConnection(null);
-    }
-    setPeerState(prev => ({ 
-      ...prev, 
-      connectedPeerId: null, 
-      isConnectionOpen: false 
-    }));
-    setMessages([]);
-  };
-
-  if (!user) {
-    return <Login onLogin={setUser} />;
-  }
+  const isConnected = peerState.roomId !== null;
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300 overflow-hidden">
@@ -219,7 +285,7 @@ const App: React.FC = () => {
             }}
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
-            <span className="text-[10px] md:text-xs font-bold text-red-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest hidden xs:inline">Logout</span>
+            <span className="text-[10px] md:text-xs font-bold text-slate-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest hidden sm:inline">Logout</span>
           </Button>
         </div>
       </motion.nav>
@@ -228,7 +294,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col md:flex-row p-3 md:p-6 gap-3 md:gap-6 max-w-[1600px] mx-auto w-full h-[calc(100vh-64px)] overflow-hidden">
         
         {/* Mobile View Switcher */}
-        {peerState.isConnectionOpen && (
+        {isConnected && (
           <div className="md:hidden flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 mb-1 flex-shrink-0 shadow-sm transition-colors duration-300">
             <button 
               onClick={() => setActiveTab('chat')}
@@ -258,7 +324,7 @@ const App: React.FC = () => {
         <motion.aside 
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-4 md:gap-6 flex-shrink-0 md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar ${peerState.isConnectionOpen && activeTab !== 'info' && 'hidden md:flex'}`}
+          className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-4 md:gap-6 flex-shrink-0 md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar ${isConnected && activeTab !== 'info' && 'hidden md:flex'}`}
         >
           {/* Status Card */}
           <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl relative group transition-all duration-300">
@@ -267,13 +333,15 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5 flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full ${peerState.myId ? 'bg-blue-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
-              Connection Info
+              Meeting Info
             </h2>
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">Your Personal ID</p>
+                <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">
+                  {peerState.isHost ? 'Host ID' : isConnected ? 'Meeting ID' : 'Your Personal ID'}
+                </p>
                 <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
-                  <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.myId || 'GENERATING ID...'}</p>
+                  <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.roomId || peerState.myId || 'GENERATING ID...'}</p>
                   <div className="flex gap-1">
                     <button 
                       onClick={() => setShowQr(!showQr)}
@@ -304,7 +372,7 @@ const App: React.FC = () => {
               </div>
 
               <AnimatePresence>
-                {showQr && peerState.myId && (
+                {showQr && (peerState.roomId || peerState.myId) && (
                   <motion.div 
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -315,7 +383,7 @@ const App: React.FC = () => {
                       <div className="bg-white p-1.5 rounded-lg shadow-sm w-full max-w-[140px] aspect-square flex items-center justify-center">
                         <QRCodeCanvas 
                           id="peer-qr-code"
-                          value={peerState.myId} 
+                          value={peerState.roomId || peerState.myId} 
                           size={120}
                           level="M"
                           includeMargin={true}
@@ -335,85 +403,89 @@ const App: React.FC = () => {
               </AnimatePresence>
               
               <div className="flex items-center justify-between text-[10px] pt-1">
-                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">Status</span>
+                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">Room Mode</span>
                 <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
-                  peerState.isConnectionOpen ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 
-                  peerState.connectionError ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20' : 
+                  peerState.isHost ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 
+                  isConnected ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' :
                   'bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800'
                 }`}>
-                  {peerState.isConnectionOpen ? 'CONNECTED' : peerState.connectionError ? 'ERROR' : 'IDLE'}
+                  {peerState.isHost ? 'HOSTING' : isConnected ? 'GUEST' : 'IDLE'}
                 </span>
               </div>
             </div>
           </section>
 
           {/* Connection Trigger Card */}
-          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
-            <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Start Connection</h2>
-            {!peerState.isConnectionOpen ? (
+          {!isConnected ? (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
+              <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Start Meeting</h2>
               <div className="space-y-4">
+                <Button 
+                  onClick={hostMeeting}
+                  disabled={!peerState.myId}
+                  className="w-full py-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 font-bold tracking-[0.2em] text-[10px] uppercase group"
+                >
+                  Host Meeting
+                </Button>
+                
+                <div className="relative flex items-center gap-2">
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+                  <span className="text-[8px] font-mono text-slate-400 uppercase tracking-widest">OR</span>
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+                </div>
+
                 <div className="relative group/input">
                   <input 
                     type="text"
-                    placeholder="PASTE FRIEND'S ID"
-                    value={targetPeerId}
-                    onChange={(e) => setTargetPeerId(e.target.value)}
+                    placeholder="ENTER HOST ROOM ID"
+                    value={targetRoomId}
+                    onChange={(e) => setTargetRoomId(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 pr-24 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <button
                       onClick={() => setIsScanning(true)}
                       className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                      title="Scan QR Code"
+                      title="Scan Room QR"
                     >
                       <Scan className="w-4 h-4" />
-                    </button>
-                    <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-0.5"></div>
-                    <button 
-                      className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                      onClick={async () => {
-                        try {
-                          const text = await navigator.clipboard.readText();
-                          setTargetPeerId(text);
-                        } catch (err) {
-                          console.error("Paste failed", err);
-                        }
-                      }}
-                      title="Paste ID"
-                    >
-                      <Zap className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
                 <Button 
-                  onClick={connectToPeer}
-                  disabled={!targetPeerId || !peerState.myId}
-                  className="w-full py-6 rounded-xl bg-blue-600 hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 font-bold tracking-[0.2em] text-[10px] uppercase group"
+                  onClick={joinMeeting}
+                  disabled={!targetRoomId || !peerState.myId}
+                  className="w-full py-6 rounded-xl border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-bold tracking-[0.2em] text-[10px] uppercase group border"
                 >
-                   {peerState.connectionError ? 'RETRY CALL' : 'START CALL'}
+                  Join Meeting
                 </Button>
               </div>
-            ) : (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-6 bg-green-500/5 rounded-xl border border-green-500/10 shadow-inner"
-                >
-                  <div className="flex items-center justify-between gap-2 px-2">
+            </section>
+          ) : (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
+              <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-4 flex items-center justify-between">
+                Participants
+                <span className="bg-blue-500/10 text-blue-500 px-2 rounded-full">{peerState.participants.length}</span>
+              </h2>
+              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                {peerState.participants.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/50">
+                    <img src={p.avatarUrl} alt={p.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase text-left">Private Link Active</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-1 truncate text-left">{peerState.connectedPeerId}</p>
+                      <p className="text-[11px] font-bold truncate">{p.name} {p.id === user?.id && <span className="text-blue-500 ml-1">(You)</span>}</p>
+                      <p className="text-[8px] font-mono text-slate-400 truncate tracking-tight">{p.id}</p>
                     </div>
-                    <button 
-                      onClick={disconnect}
-                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all border border-red-500/20"
-                    >
-                      End Connection
-                    </button>
                   </div>
-                </motion.div>
-            )}
-          </section>
+                ))}
+              </div>
+              <Button 
+                onClick={leaveMeeting}
+                className="w-full mt-4 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-bold tracking-widest text-[9px] uppercase transition-all"
+              >
+                Leave Meeting
+              </Button>
+            </section>
+          )}
 
           {/* AI Module */}
           <motion.div 
@@ -427,26 +499,32 @@ const App: React.FC = () => {
              </div>
              <div>
                 <p className="text-[10px] font-mono text-indigo-400 uppercase font-bold mb-1 tracking-widest">AI Tools</p>
-                <p className="text-[10px] text-slate-500 leading-relaxed font-medium">AI assistants are available for chat summaries and instant smart replies.</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed font-medium">AI assistants are available for group summaries and instant smart replies.</p>
              </div>
           </motion.div>
-
-          {/* Quick Stats */}
-          <div className="mt-auto p-4 border border-slate-800 rounded-2xl opacity-50 space-y-2">
-             <div className="flex justify-between text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                <span>Delay</span>
-                <span className="text-blue-500">24ms</span>
-             </div>
-             <div className="flex justify-between text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                <span>Network</span>
-                <span className="text-blue-500">Direct P2P</span>
-             </div>
-          </div>
         </motion.aside>
 
+        {/* Right Panel - Private Messages (SWAPPED POSITION with Video Feed as requested) */}
+        {isConnected && (
+          <motion.aside 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-6 flex-shrink-0 min-h-0 ${activeTab !== 'chat' && 'hidden md:flex'}`}
+          >
+            <ChatInterface 
+              connections={Array.from(dataConnections.values())} 
+              currentUser={user}
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              aiConfig={aiConfig}
+            />
+          </motion.aside>
+        )}
+
         {/* Center Panel - Interaction (Now Video Feed) */}
-        <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${peerState.isConnectionOpen && activeTab !== 'video' && 'hidden md:flex'}`}>
-          {!peerState.isConnectionOpen ? (
+        <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isConnected && activeTab !== 'video' && 'hidden md:flex'}`}>
+          {!isConnected ? (
              <div className="flex-1 flex items-center justify-center bg-slate-950/20 rounded-3xl border border-dashed border-slate-800 relative group">
                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 rounded-3xl" />
                 <div className="max-w-md text-center flex flex-col items-center p-8 z-10">
@@ -460,8 +538,8 @@ const App: React.FC = () => {
                    >
                      <Radio className="w-10 h-10 text-blue-500 opacity-30 shadow-2xl" />
                    </motion.div>
-                   <h3 className="text-xl font-bold text-slate-200 mb-2 tracking-tight">Waiting for Peer</h3>
-                   <p className="text-slate-500 text-xs leading-relaxed font-mono max-w-[280px]">Your connection is ready. Share your ID with a friend to start a secure conversation.</p>
+                   <h3 className="text-xl font-bold text-slate-200 mb-2 tracking-tight">Meeting Offline</h3>
+                   <p className="text-slate-500 text-xs leading-relaxed font-mono max-w-[280px]">Host a new meeting or enter a Host ID to join an existing session.</p>
                 </div>
              </div>
           ) : (
@@ -472,32 +550,13 @@ const App: React.FC = () => {
             >
               <VideoInterface 
                 peer={peerInstance!} 
-                remotePeerId={peerState.connectedPeerId!} 
+                remotePeerId={peerState.roomId!} 
                 incomingCall={incomingCall}
                 onCallEnd={() => setIncomingCall(null)}
               />
             </motion.section>
           )}
         </div>
-
-        {/* Right Panel - Private Messages */}
-        {peerState.isConnectionOpen && (
-          <motion.aside 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-6 flex-shrink-0 min-h-0 ${activeTab !== 'chat' && 'hidden md:flex'}`}
-          >
-            <ChatInterface 
-              connection={dataConnection} 
-              currentUser={user}
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              aiConfig={aiConfig}
-            />
-          </motion.aside>
-        )}
-
       </main>
 
       <AnimatePresence>

@@ -9,20 +9,22 @@ import { generateUUID } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ChatInterfaceProps {
-  connection: DataConnection | null;
+  connections: DataConnection[];
   currentUser: UserProfile;
   messages: ChatMessage[];
   onSendMessage: (msg: ChatMessage) => void;
   aiConfig: AiConfig | null;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, messages, onSendMessage, aiConfig }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser, messages, onSendMessage, aiConfig }) => {
   const [inputText, setInputText] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isAiEnabled, setIsAiEnabled] = useState(true);
   const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasConnections = connections.length > 0;
 
   useEffect(() => {
     // Check if AI is enabled based on config or env
@@ -42,7 +44,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
   }, [messages]);
 
   const handleSendText = (text: string = inputText) => {
-    if (!text.trim() || !connection) return;
+    if (!text.trim() || !hasConnections) return;
 
     const msg: ChatMessage = {
       id: generateUUID(),
@@ -53,7 +55,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
       timestamp: Date.now()
     };
 
-    connection.send(msg);
+    connections.forEach(conn => conn.send(msg));
     onSendMessage(msg);
     setInputText('');
     setSuggestedReplies([]); // Clear suggestions after sending
@@ -61,7 +63,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !connection) return;
+    if (!file || !hasConnections) return;
 
     // Increased limit to 2GB as requested
     const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
@@ -83,7 +85,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
       timestamp: Date.now()
     };
     
-    connection.send(msg);
+    connections.forEach(conn => conn.send(msg));
     onSendMessage(msg);
     
     // Reset input
@@ -307,14 +309,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
-            placeholder={connection ? "Type a message..." : "Waiting..."}
+            placeholder={hasConnections ? "Type a message..." : "Waiting..."}
             className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-full px-3 md:px-5 py-2 md:py-2.5 focus:ring-1 focus:ring-blue-500/50 text-xs md:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-all"
-            disabled={!connection}
+            disabled={!hasConnections}
           />
           
           <Button 
             onClick={() => handleSendText()} 
-            disabled={!connection || !inputText.trim()}
+            disabled={!hasConnections || !inputText.trim()}
             className="rounded-full w-9 h-9 md:w-10 md:h-10 p-0 flex-shrink-0 flex items-center justify-center bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"
           >
             <Send className="w-5 h-5 md:w-6 md:h-6" />

@@ -22,6 +22,10 @@ export interface UserProfile {
   avatarUrl: string;
 }
 
+export interface Participant extends UserProfile {
+  isHost?: boolean;
+}
+
 export type AiProvider = 'gemini' | 'ollama' | 'openrouter';
 
 export interface AiConfig {
@@ -33,7 +37,19 @@ export interface AiConfig {
 
 export interface PeerState {
   myId: string;
-  connectedPeerId: string | null;
-  isConnectionOpen: boolean;
+  roomId: string | null;
+  isHost: boolean;
+  participants: Participant[];
   connectionError: string | null;
+}
+
+export enum SignalingType {
+  PARTICIPANT_LIST = 'PARTICIPANT_LIST',
+  NEW_PARTICIPANT = 'NEW_PARTICIPANT',
+  MESH_CONNECT = 'MESH_CONNECT'
+}
+
+export interface SignalingMessage {
+  type: SignalingType;
+  payload: any;
 }
