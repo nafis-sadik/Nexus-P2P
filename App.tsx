@@ -42,13 +42,23 @@ const App: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'info'>('chat');
 
-  // Initialize PeerJS when user logs in
+  // Initialize PeerJS when user clicks Host, Peer, or Join
   useEffect(() => {
-    if (user && !peerInstance) {
+    if (user && !peerInstance && (peerState.mode !== 'idle' || targetRoomId)) {
       const newPeer = new Peer();
 
       newPeer.on('open', (id) => {
-        setPeerState(prev => ({ ...prev, myId: id, connectionError: null }));
+        setPeerState(prev => {
+          const update = { ...prev, myId: id, connectionError: null };
+          // If we were trying to host a meeting, set the roomId to our new ID
+          if (prev.isHost && prev.mode === 'meeting') {
+            update.roomId = id;
+            update.participants = [user];
+          } else if (prev.isHost && prev.mode === 'peer') {
+            update.participants = [user];
+          }
+          return update;
+        });
         setUser(prev => prev ? { ...prev, id } : null);
       });
 
@@ -75,7 +85,7 @@ const App: React.FC = () => {
 
       setPeerInstance(newPeer);
     }
-  }, [user, peerInstance]);
+  }, [user, peerInstance, peerState.mode, targetRoomId]);
 
   const isDark = () => document.documentElement.classList.contains('dark');
 
@@ -257,29 +267,27 @@ const App: React.FC = () => {
   };
 
   const hostMeeting = () => {
-    if (!peerState.myId) return;
     setPeerState(prev => ({ 
       ...prev, 
-      roomId: prev.myId, 
+      roomId: prev.myId || null, 
       isHost: true,
       mode: 'meeting',
-      participants: [user!] 
+      participants: prev.myId ? [user!] : [] 
     }));
   };
 
   const hostPeer = () => {
-    if (!peerState.myId) return;
     setPeerState(prev => ({ 
       ...prev, 
       roomId: null, 
       isHost: true,
       mode: 'peer',
-      participants: [user!] 
+      participants: prev.myId ? [user!] : [] 
     }));
   };
 
   const joinMeeting = () => {
-    if (!peerInstance || !targetRoomId) return;
+    if (!targetRoomId) return;
     
     const trimmedId = targetRoomId.trim();
     if (!trimmedId.startsWith('NEX_M_')) {
@@ -288,8 +296,12 @@ const App: React.FC = () => {
     }
 
     const realPeerId = trimmedId.replace('NEX_M_', '');
-    const conn = peerInstance.connect(realPeerId);
-    setupDataConnection(conn);
+    
+    if (peerInstance) {
+      const conn = peerInstance.connect(realPeerId);
+      setupDataConnection(conn);
+    }
+    
     setPeerState(prev => ({ ...prev, roomId: realPeerId, isHost: false, mode: 'meeting' }));
   };
 
@@ -299,7 +311,7 @@ const App: React.FC = () => {
   };
 
   const directConnect = () => {
-    if (!peerInstance || !targetRoomId) return;
+    if (!targetRoomId) return;
 
     const trimmedId = targetRoomId.trim();
     if (!trimmedId.startsWith('NEX_P_')) {
@@ -308,9 +320,13 @@ const App: React.FC = () => {
     }
 
     const realPeerId = trimmedId.replace('NEX_P_', '');
-    const conn = peerInstance.connect(realPeerId);
+    
+    if (peerInstance) {
+      const conn = peerInstance.connect(realPeerId);
+      setupDataConnection(conn);
+    }
+
     setPeerState(prev => ({ ...prev, roomId: realPeerId, mode: 'peer', isHost: false }));
-    setupDataConnection(conn);
   };
 
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
@@ -549,124 +565,147 @@ const App: React.FC = () => {
                <Share2 className="w-16 h-16 text-blue-400" />
             </div>
             <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5 flex items-center gap-2">
-              <span className={`w-1.5 h-1.5 rounded-full ${peerState.myId ? 'bg-blue-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
-              Meeting Info
+              <span className={`w-1.5 h-1.5 rounded-full ${peerState.myId ? 'bg-emerald-500 animate-pulse' : (peerState.mode !== 'idle' ? 'bg-amber-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-700')}`} />
+              Host
             </h2>
             <div className="space-y-4">
-              <div>
-                <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">
-                  {peerState.isHost ? 'Host ID' : isConnected ? 'Meeting ID' : 'Your Personal ID'}
-                </p>
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
-                  <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">
-                    {peerState.roomId 
-                      ? getFormattedMeetingId(peerState.roomId) 
-                      : peerState.myId 
-                        ? getFormattedPersonalId(peerState.myId) 
-                        : 'GENERATING ID...'}
-                  </p>
-                  <div className="flex gap-1">
-                    <button 
-                      onClick={() => {
-                        setIsScanning(true);
-                      }}
-                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
-                      title="Scan to Direct Connect (Peer Mode)"
-                    >
-                      <Scan className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => setShowQr(!showQr)}
-                      className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
-                      title={showQr ? "Hide QR Code" : "Show QR Code"}
-                    >
-                      <QrCode className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={copyId}
-                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
-                      title="Copy ID"
-                    >
-                      <AnimatePresence mode="wait">
-                        {copied ? (
-                          <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                            <Check className="w-4 h-4 text-green-500" />
-                          </motion.div>
-                        ) : (
-                          <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                            <Copy className="w-4 h-4" />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {showQr && (peerState.roomId || peerState.myId) && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-visible"
-                  >
-                    <div className="flex flex-col items-center gap-2.5 bg-slate-50 dark:bg-black/20 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 mt-1">
-                      <div className="bg-white p-1.5 rounded-lg shadow-sm w-full max-w-[140px] aspect-square flex items-center justify-center">
-                        <QRCodeCanvas 
-                          id="peer-qr-code"
-                          value={peerState.roomId 
-                            ? getFormattedMeetingId(peerState.roomId) 
-                            : getFormattedPersonalId(peerState.myId)} 
-                          size={120}
-                          level="M"
-                          includeMargin={true}
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </div>
-                      <button 
-                        onClick={downloadQrCode}
-                        className="flex items-center gap-2 text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity pb-1"
-                      >
-                        <Download className="w-3 h-3" />
-                        Download QR
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              
-              <div className="flex items-center justify-between text-[10px] pt-1">
-                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">
-                  {peerState.mode === 'meeting' ? 'Meeting Mode' : 'Peer Mode'}
-                </span>
-                <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
-                  peerState.isHost ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 
-                  isConnected ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' :
-                  'bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800'
-                }`}>
-                  {peerState.isHost ? 'HOSTING' : isConnected ? 'GUEST' : 'IDLE'}
-                </span>
-              </div>
-
-              {!isConnected && peerState.mode !== 'peer' && (
-                <Button 
-                  onClick={hostPeer}
-                  variant="secondary"
-                  className="w-full mt-2 py-2 text-[8px] font-bold uppercase tracking-widest rounded-xl border border-indigo-200 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all shadow-sm"
+              {(peerState.mode !== 'idle' || isConnected) && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4"
                 >
-                  <Zap className="w-3 h-3 mr-2 text-amber-500" />
-                  Enter Peer Mode
-                </Button>
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-400 dark:text-slate-600 mb-1.5 font-mono tracking-wider ml-1">
+                      {peerState.mode === 'meeting' ? (peerState.isHost ? 'Host ID' : 'Meeting ID') : 'Your Personal ID'}
+                    </p>
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
+                      <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">
+                        {peerState.roomId 
+                          ? getFormattedMeetingId(peerState.roomId) 
+                          : peerState.myId 
+                            ? getFormattedPersonalId(peerState.myId) 
+                            : 'GENERATING ID...'}
+                      </p>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => {
+                            setIsScanning(true);
+                          }}
+                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+                          title="Scan to Direct Connect (Peer Mode)"
+                        >
+                          <Scan className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setShowQr(!showQr)}
+                          className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
+                          title={showQr ? "Hide QR Code" : "Show QR Code"}
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={copyId}
+                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+                          title="Copy ID"
+                        >
+                          <AnimatePresence mode="wait">
+                            {copied ? (
+                              <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                                <Check className="w-4 h-4 text-green-500" />
+                              </motion.div>
+                            ) : (
+                              <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                                <Copy className="w-4 h-4" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {showQr && (peerState.roomId || peerState.myId) && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-visible"
+                      >
+                        <div className="flex flex-col items-center gap-2.5 bg-slate-50 dark:bg-black/20 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 mt-1">
+                          <div className="bg-white p-1.5 rounded-lg shadow-sm w-full max-w-[140px] aspect-square flex items-center justify-center">
+                            <QRCodeCanvas 
+                              id="peer-qr-code"
+                              value={peerState.roomId 
+                                ? getFormattedMeetingId(peerState.roomId) 
+                                : getFormattedPersonalId(peerState.myId)} 
+                              size={120}
+                              level="M"
+                              includeMargin={true}
+                              style={{ width: '100%', height: '100%' }}
+                            />
+                          </div>
+                          <button 
+                            onClick={downloadQrCode}
+                            className="flex items-center gap-2 text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity pb-1"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download QR
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  <div className="flex items-center justify-between text-[10px] pt-1">
+                    <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
+                      peerState.isHost ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 
+                      isConnected ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' :
+                      'bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800'
+                    }`}>
+                      {peerState.isHost ? 'HOSTING' : isConnected ? 'GUEST' : peerState.mode !== 'idle' ? 'INITIALIZING' : 'IDLE'}
+                    </span>
+                    {!isConnected && (
+                      <button 
+                        onClick={leaveMeeting}
+                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg font-bold uppercase text-[8px] tracking-widest transition-all shadow-lg shadow-red-500/20 flex items-center gap-1.5"
+                      >
+                        <LogOut className="w-2.5 h-2.5" />
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {peerState.mode === 'idle' && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Button 
+                    onClick={hostMeeting}
+                    className="py-3.5 rounded-xl transition-all shadow-lg font-bold tracking-[0.05em] text-[8px] uppercase group whitespace-nowrap bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"
+                  >
+                    <Sparkles className="w-3 h-3 mr-1.5 inline-block text-amber-400" />
+                    Host
+                  </Button>
+                  <Button 
+                    onClick={hostPeer}
+                    variant="secondary"
+                    className="py-3.5 text-[8px] font-bold uppercase tracking-widest rounded-xl border transition-all shadow-sm whitespace-nowrap border-indigo-200 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
+                  >
+                    <Zap className="w-3 h-3 mr-1.5 inline-block text-amber-500" />
+                    Peer
+                  </Button>
+                </div>
               )}
             </div>
           </section>
 
           {/* Connection Trigger Card */}
-          {!isConnected ? (
+          {!isConnected && peerState.mode === 'idle' ? (
             <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Start Meeting</h2>
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Join</h2>
                 <div className="flex items-center gap-2">
                   <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 text-right">Meeting Mode</p>
                   <span className="px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800">
@@ -675,30 +714,6 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <Button 
-                    onClick={hostMeeting}
-                    disabled={!peerState.myId}
-                    className="py-5 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 font-bold tracking-[0.1em] text-[8px] uppercase group"
-                  >
-                    Host Meeting
-                  </Button>
-                  <Button 
-                    onClick={hostPeer}
-                    disabled={!peerState.myId}
-                    variant="secondary"
-                    className="py-5 rounded-xl font-bold tracking-[0.1em] text-[8px] uppercase ring-1 ring-slate-200 dark:ring-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
-                  >
-                    Host Peer
-                  </Button>
-                </div>
-                
-                <div className="relative flex items-center gap-2">
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-                  <span className="text-[8px] font-mono text-slate-400 uppercase tracking-widest">OR</span>
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-                </div>
-
                 <div className="relative group/input">
                   <input 
                     type="text"
@@ -722,14 +737,14 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <Button 
                     onClick={joinMeeting}
-                    disabled={!targetRoomId || !peerState.myId}
+                    disabled={!targetRoomId}
                     className="py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group"
                   >
                     Join Meeting
                   </Button>
                   <Button 
                     onClick={directConnect}
-                    disabled={!targetRoomId || !peerState.myId}
+                    disabled={!targetRoomId}
                     variant="secondary"
                     className="py-4 rounded-xl font-bold tracking-[0.1em] text-[8px] uppercase ring-1 ring-slate-200 dark:ring-slate-800"
                   >
