@@ -8,7 +8,7 @@ import Button from './components/Button';
 import ThemeToggle from './components/ThemeToggle';
 import AiSettings from './components/AiSettings';
 import { UserProfile, ChatMessage, PeerState, AiConfig } from './types';
-import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Share2, Bot, QrCode, Download, Scan } from 'lucide-react';
+import { LogOut, Copy, Check, Sparkles, Zap, ShieldCheck, Share2, Bot, QrCode, Download, Scan, PhoneIncoming } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { copyToClipboard } from './utils';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -35,12 +35,126 @@ const App: React.FC = () => {
   const dataConnectionsRef = useRef<Map<string, DataConnection>>(new Map<string, DataConnection>());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [targetRoomId, setTargetRoomId] = useState('');
-  const [incomingCall, setIncomingCall] = useState<MediaConnection | null>(null);
+  const [incomingCalls, setIncomingCalls] = useState<MediaConnection[]>([]);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [activeCalls, setActiveCalls] = useState<Map<string, MediaConnection>>(new Map());
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'info'>('chat');
+
+  // Handle incoming calls global listener
+  useEffect(() => {
+    incomingCalls.forEach(call => {
+      if (!activeCalls.has(call.peer)) {
+        call.on('stream', (stream) => {
+          setRemoteStreams(prev => new Map(prev).set(call.peer, stream));
+        });
+        call.on('close', () => {
+          setRemoteStreams(prev => {
+            const next = new Map(prev);
+            next.delete(call.peer);
+            return next;
+          });
+          setActiveCalls(prev => {
+            const next = new Map(prev);
+            next.delete(call.peer);
+            return next;
+          });
+          setIncomingCalls(prev => prev.filter(c => c.peer !== call.peer));
+        });
+      }
+    });
+  }, [incomingCalls, activeCalls]);
+
+  const answerCall = async (call: MediaConnection) => {
+    try {
+      let stream = localStream;
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user' }, 
+          audio: true 
+        });
+        setLocalStream(stream);
+      }
+      call.answer(stream);
+      setActiveCalls(prev => new Map(prev).set(call.peer, call));
+      setIncomingCalls(prev => prev.filter(c => c.peer !== call.peer));
+    } catch (err: any) {
+      console.error("Failed to answer call", err);
+      call.answer();
+      setActiveCalls(prev => new Map(prev).set(call.peer, call));
+      setIncomingCalls(prev => prev.filter(c => c.peer !== call.peer));
+    }
+  };
+
+  const rejectCall = (call: MediaConnection) => {
+    call.close();
+    setIncomingCalls(prev => prev.filter(c => c.peer !== call.peer));
+  };
+
+  const startCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, 
+        audio: true 
+      });
+      setLocalStream(stream);
+      
+      peerState.participants.forEach((p) => {
+        if (p.id !== user!.id && !activeCalls.has(p.id)) {
+          const newCall = peerInstance!.call(p.id, stream);
+          setActiveCalls(prev => new Map(prev).set(p.id, newCall));
+
+          newCall.on('stream', (remoteStream) => {
+            setRemoteStreams(prev => new Map(prev).set(p.id, remoteStream));
+          });
+
+          newCall.on('close', () => {
+            setRemoteStreams(prev => {
+                const next = new Map(prev);
+                next.delete(p.id);
+                return next;
+            });
+            setActiveCalls(prev => {
+                const next = new Map(prev);
+                next.delete(p.id);
+                return next;
+            });
+          });
+        }
+      });
+    } catch (err: any) {
+      console.error("Failed to start call", err);
+    }
+  };
+
+  const endCall = () => {
+    activeCalls.forEach(call => call.close());
+    localStream?.getTracks().forEach(track => track.stop());
+    setLocalStream(null);
+    setRemoteStreams(new Map());
+    setActiveCalls(new Map());
+  };
+
+  const toggleMute = () => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const toggleVideo = () => {
+    if (localStream) {
+      localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+      setIsVideoOff(!isVideoOff);
+    }
+  };
 
   // Initialize PeerJS when user clicks Host, Peer, or Join
   useEffect(() => {
@@ -76,7 +190,7 @@ const App: React.FC = () => {
       });
 
       newPeer.on('call', (call) => {
-        setIncomingCall(call);
+        setIncomingCalls(prev => [...prev, call]);
       });
 
       newPeer.on('error', (err) => {
@@ -415,10 +529,6 @@ const App: React.FC = () => {
   };
 
   const leaveMeeting = () => {
-    if (peerState.isHost && peerState.mode === 'meeting') {
-      broadcastSystemMessage({ action: 'ROOM_DESTROYED' });
-    }
-    
     dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
     dataConnectionsRef.current = new Map<string, DataConnection>();
     setDataConnections(new Map<string, DataConnection>());
@@ -430,6 +540,7 @@ const App: React.FC = () => {
       participants: [] 
     }));
     setMessages([]);
+    endCall();
   };
 
   if (!user) {
@@ -440,7 +551,7 @@ const App: React.FC = () => {
     const rawId = peerState.roomId || peerState.myId;
     if (!rawId) return;
 
-    const formattedId = peerState.roomId || (peerState.mode === 'meeting' || peerState.isHost)
+    const formattedId = peerState.mode === 'meeting'
       ? getFormattedMeetingId(rawId)
       : getFormattedPersonalId(rawId);
 
@@ -582,11 +693,9 @@ const App: React.FC = () => {
                     </p>
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 group/id transition-all hover:border-slate-300 dark:hover:border-slate-700 ring-1 ring-slate-100 dark:ring-slate-800/50 shadow-inner">
                       <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">
-                        {peerState.roomId 
-                          ? getFormattedMeetingId(peerState.roomId) 
-                          : peerState.myId 
-                            ? getFormattedPersonalId(peerState.myId) 
-                            : 'GENERATING ID...'}
+                        {peerState.mode === 'meeting'
+                          ? (peerState.roomId ? getFormattedMeetingId(peerState.roomId) : (peerState.myId ? getFormattedMeetingId(peerState.myId) : 'GENERATING...'))
+                          : (peerState.roomId ? getFormattedPersonalId(peerState.roomId) : (peerState.myId ? getFormattedPersonalId(peerState.myId) : 'GENERATING...'))}
                       </p>
                       <div className="flex gap-1">
                         <button 
@@ -638,9 +747,9 @@ const App: React.FC = () => {
                           <div className="bg-white p-1.5 rounded-lg shadow-sm w-full max-w-[140px] aspect-square flex items-center justify-center">
                             <QRCodeCanvas 
                               id="peer-qr-code"
-                              value={peerState.roomId 
-                                ? getFormattedMeetingId(peerState.roomId) 
-                                : getFormattedPersonalId(peerState.myId)} 
+                              value={peerState.mode === 'meeting'
+                                ? getFormattedMeetingId(peerState.roomId || peerState.myId)
+                                : getFormattedPersonalId(peerState.roomId || peerState.myId)} 
                               size={120}
                               level="M"
                               includeMargin={true}
@@ -852,11 +961,16 @@ const App: React.FC = () => {
               className="flex-1 min-h-0 flex flex-col"
             >
               <VideoInterface 
-                peer={peerInstance!} 
-                myId={peerState.myId}
                 participants={peerState.participants}
-                incomingCall={incomingCall}
-                onCallEnd={() => setIncomingCall(null)}
+                activeCalls={activeCalls}
+                localStream={localStream}
+                remoteStreams={remoteStreams}
+                onStartCall={startCall}
+                onEndCall={endCall}
+                toggleMute={toggleMute}
+                toggleVideo={toggleVideo}
+                isMuted={isMuted}
+                isVideoOff={isVideoOff}
               />
             </motion.section>
           )}
@@ -881,6 +995,45 @@ const App: React.FC = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Global Incoming Call Notifications */}
+      <div className="fixed top-20 left-4 z-[100] flex flex-col gap-3 max-w-xs pointer-events-none">
+        <AnimatePresence>
+          {incomingCalls.map((call) => (
+            <motion.div
+              key={call.peer}
+              initial={{ opacity: 0, x: -30, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -30, scale: 0.9 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl pointer-events-auto flex flex-col gap-4 ring-1 ring-black/5"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center shadow-inner">
+                  <PhoneIncoming className="w-6 h-6 text-blue-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-tight">Incoming Request</h4>
+                  <p className="text-[9px] font-mono text-slate-400 truncate tracking-tighter">{call.peer}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => answerCall(call)}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => rejectCall(call)}
+                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Decline
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

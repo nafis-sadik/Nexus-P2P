@@ -1,26 +1,35 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Peer, { MediaConnection } from 'peerjs';
+import React, { useEffect, useRef } from 'react';
+import { MediaConnection } from 'peerjs';
 import Button from './Button';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneIncoming, Activity } from 'lucide-react';
+import { Mic, MicOff, Video as VideoIcon, VideoOff, Activity } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface VideoInterfaceProps {
-  peer: Peer;
-  myId: string;
   participants: UserProfile[];
-  incomingCall: MediaConnection | null;
-  onCallEnd: () => void;
+  activeCalls: Map<string, MediaConnection>;
+  localStream: MediaStream | null;
+  remoteStreams: Map<string, MediaStream>;
+  onStartCall: () => void;
+  onEndCall: () => void;
+  toggleMute: () => void;
+  toggleVideo: () => void;
+  isMuted: boolean;
+  isVideoOff: boolean;
 }
 
-const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, myId, participants, incomingCall, onCallEnd }) => {
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-  const [activeCalls, setActiveCalls] = useState<Map<string, MediaConnection>>(new Map());
-  
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
-
+const VideoInterface: React.FC<VideoInterfaceProps> = ({ 
+  participants, 
+  activeCalls,
+  localStream,
+  remoteStreams,
+  onStartCall,
+  onEndCall,
+  toggleMute,
+  toggleVideo,
+  isMuted,
+  isVideoOff
+}) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   // Handle local video element
@@ -29,126 +38,6 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, myId, participant
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
-
-  // Handle incoming calls
-  useEffect(() => {
-    if (incomingCall) {
-      const handleStream = (stream: MediaStream) => {
-        setRemoteStreams(prev => {
-          const next = new Map(prev);
-          next.set(incomingCall.peer, stream);
-          return next;
-        });
-      };
-
-      const handleClose = () => {
-        setRemoteStreams(prev => {
-          const next = new Map(prev);
-          next.delete(incomingCall.peer);
-          return next;
-        });
-        setActiveCalls(prev => {
-          const next = new Map(prev);
-          next.delete(incomingCall.peer);
-          return next;
-        });
-      };
-
-      if (localStream) {
-        incomingCall.answer(localStream);
-      } else {
-        incomingCall.on('stream', handleStream);
-      }
-      
-      incomingCall.on('stream', handleStream);
-      incomingCall.on('close', handleClose);
-      incomingCall.on('error', handleClose);
-      
-      setActiveCalls(prev => new Map(prev).set(incomingCall.peer, incomingCall));
-    }
-  }, [incomingCall, localStream]);
-
-  const answerCall = async () => {
-    if (!incomingCall) return;
-    
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' }, 
-        audio: true 
-      });
-      setLocalStream(stream);
-      incomingCall.answer(stream);
-      setActiveCalls(prev => new Map(prev).set(incomingCall.peer, incomingCall));
-    } catch (err: any) {
-      console.error("Failed to answer call", err);
-      incomingCall.answer();
-    }
-  };
-
-  const rejectCall = () => {
-    incomingCall?.close();
-    onCallEnd();
-  };
-
-  const startCall = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' }, 
-        audio: true 
-      });
-      setLocalStream(stream);
-      
-      // Call all other participants
-      participants.forEach((p) => {
-        if (p.id !== myId && !activeCalls.has(p.id)) {
-          const newCall = peer.call(p.id, stream);
-          setActiveCalls(prev => new Map(prev).set(p.id, newCall));
-
-          newCall.on('stream', (remoteStream) => {
-            setRemoteStreams(prev => new Map(prev).set(p.id, remoteStream));
-          });
-
-          newCall.on('close', () => {
-            setRemoteStreams(prev => {
-                const next = new Map(prev);
-                next.delete(p.id);
-                return next;
-            });
-            setActiveCalls(prev => {
-                const next = new Map(prev);
-                next.delete(p.id);
-                return next;
-            });
-          });
-        }
-      });
-    } catch (err: any) {
-      console.error("Failed to start call", err);
-    }
-  };
-
-  const endCall = () => {
-    activeCalls.forEach(call => call.close());
-    localStream?.getTracks().forEach(track => track.stop());
-    setLocalStream(null);
-    setRemoteStreams(new Map());
-    setActiveCalls(new Map());
-    onCallEnd();
-  };
-
-  const toggleMute = () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const toggleVideo = () => {
-    if (localStream) {
-      localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
-      setIsVideoOff(!isVideoOff);
-    }
-  };
 
   const remoteStreamsArray = Array.from(remoteStreams.entries());
   const totalParticipantsInCall = remoteStreamsArray.length + (localStream ? 1 : 0);
@@ -167,7 +56,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, myId, participant
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 relative transition-colors duration-300">
       <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
         <h3 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-           <Activity className="w-4 h-4 text-emerald-500" /> Meeting Feed
+           <Activity className="w-4 h-4 text-emerald-500" /> Meeting Feed ({participants.length})
         </h3>
         {activeCalls.size > 0 && <div className="text-[10px] font-mono text-emerald-500 animate-pulse uppercase font-bold tracking-widest">{activeCalls.size} Active Feeds</div>}
       </div>
@@ -198,24 +87,10 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, myId, participant
                     animate={{ opacity: 1 }}
                     className="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500"
                 >
-                    {incomingCall && activeCalls.size === 0 ? (
-                        <div className="text-center">
-                            <motion.div 
-                                animate={{ scale: [1, 1.1, 1] }} 
-                                transition={{ repeat: Infinity, duration: 1.5 }}
-                                className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20"
-                            >
-                                <PhoneIncoming className="w-10 h-10 text-white" />
-                            </motion.div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">Incoming Request</h3>
-                            <p className="text-[9px] text-blue-500 mt-2 font-mono uppercase tracking-widest">{incomingCall.peer}</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center opacity-20">
-                            <VideoIcon className="w-12 h-12 mb-4"/>
-                            <p className="font-mono text-[9px] tracking-[0.2em] uppercase">Waiting for participants...</p>
-                        </div>
-                    )}
+                    <div className="flex flex-col items-center opacity-20">
+                        <VideoIcon className="w-12 h-12 mb-4"/>
+                        <p className="font-mono text-[9px] tracking-[0.2em] uppercase">Waiting for participants...</p>
+                    </div>
                 </motion.div>
             )}
           </AnimatePresence>
@@ -243,51 +118,40 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, myId, participant
 
       {/* Controls */}
       <div className="h-20 bg-white dark:bg-slate-950 flex items-center justify-center gap-3 md:gap-5 px-4 md:px-6 border-t border-slate-200 dark:border-slate-800">
-        {incomingCall && activeCalls.size === 0 ? (
-            <div className="flex gap-3">
-                <Button onClick={answerCall} className="bg-emerald-600 hover:bg-emerald-500 rounded-xl px-6 py-4 uppercase font-bold text-[10px] tracking-widest shadow-lg shadow-emerald-500/20">
-                    Accept Call
-                </Button>
-                <Button onClick={rejectCall} variant="danger" className="rounded-xl px-6 py-4 uppercase font-bold text-[10px] tracking-widest border border-red-500/50">
-                    Decline
-                </Button>
-            </div>
-        ) : (
-            <div className="flex items-center gap-3">
-                <Button 
-                    onClick={toggleMute} 
-                    variant="ghost"
-                    className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isMuted ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
-                >
-                    {isMuted ? <MicOff className="w-4 h-4 md:w-5 md:h-5" /> : <Mic className="w-4 h-4 md:w-5 md:h-5" />}
-                </Button>
-                
-                <Button 
-                    onClick={toggleVideo} 
-                    variant="ghost"
-                    className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isVideoOff ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
-                >
-                    {isVideoOff ? <VideoOff className="w-4 h-4 md:w-5 md:h-5" /> : <VideoIcon className="w-4 h-4 md:w-5 md:h-5" />}
-                </Button>
+        <div className="flex items-center gap-3">
+            <Button 
+                onClick={toggleMute} 
+                variant="ghost"
+                className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isMuted ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+            >
+                {isMuted ? <MicOff className="w-4 h-4 md:w-5 md:h-5" /> : <Mic className="w-4 h-4 md:w-5 md:h-5" />}
+            </Button>
+            
+            <Button 
+                onClick={toggleVideo} 
+                variant="ghost"
+                className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isVideoOff ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+            >
+                {isVideoOff ? <VideoOff className="w-4 h-4 md:w-5 md:h-5" /> : <VideoIcon className="w-4 h-4 md:w-5 md:h-5" />}
+            </Button>
 
-                {activeCalls.size === 0 ? (
-                    <Button 
-                        onClick={startCall} 
-                        className="rounded-full bg-blue-600 hover:bg-blue-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 text-white min-w-[120px]"
-                    >
-                        Start Video
-                    </Button>
-                ) : (
-                    <Button 
-                        onClick={endCall} 
-                        variant="danger" 
-                        className="rounded-full bg-red-600 hover:bg-red-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-red-600/20 text-white min-w-[120px]"
-                    >
-                        End Call
-                    </Button>
-                )}
-            </div>
-        )}
+            {activeCalls.size === 0 ? (
+                <Button 
+                    onClick={onStartCall} 
+                    className="rounded-full bg-blue-600 hover:bg-blue-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 text-white min-w-[120px]"
+                >
+                    Start Video
+                </Button>
+            ) : (
+                <Button 
+                    onClick={onEndCall} 
+                    variant="danger" 
+                    className="rounded-full bg-red-600 hover:bg-red-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-red-600/20 text-white min-w-[120px]"
+                >
+                    End Call
+                </Button>
+            )}
+        </div>
       </div>
     </div>
   );
