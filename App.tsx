@@ -457,7 +457,8 @@ const App: React.FC = () => {
     setIsSettingsOpen(false);
   };
 
-  const isConnected = peerState.roomId !== null;
+  const isConnected = peerState.mode !== 'idle';
+  const isInitializing = isConnected && (!peerInstance || !peerState.myId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300 overflow-hidden">
@@ -660,21 +661,12 @@ const App: React.FC = () => {
                   
                   <div className="flex items-center justify-between text-[10px] pt-1">
                     <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
+                      isInitializing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
                       peerState.isHost ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 
-                      isConnected ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' :
-                      'bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800'
+                      'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]'
                     }`}>
-                      {peerState.isHost ? 'HOSTING' : isConnected ? 'GUEST' : peerState.mode !== 'idle' ? 'INITIALIZING' : 'IDLE'}
+                      {isInitializing ? 'INITIALIZING' : peerState.isHost ? 'HOSTING' : 'GUEST'}
                     </span>
-                    {!isConnected && (
-                      <button 
-                        onClick={leaveMeeting}
-                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg font-bold uppercase text-[8px] tracking-widest transition-all shadow-lg shadow-red-500/20 flex items-center gap-1.5"
-                      >
-                        <LogOut className="w-2.5 h-2.5" />
-                        Cancel
-                      </button>
-                    )}
                   </div>
                 </motion.div>
               )}
@@ -810,7 +802,7 @@ const App: React.FC = () => {
         </motion.aside>
 
         {/* Right Panel - Private Messages (SWAPPED POSITION with Video Feed as requested) */}
-        {isConnected && (
+          {isConnected && peerInstance && (
           <motion.aside 
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -846,6 +838,13 @@ const App: React.FC = () => {
                    <p className="text-slate-500 text-xs leading-relaxed font-mono max-w-[280px]">Host a new meeting or enter a Host ID to join an existing session.</p>
                 </div>
              </div>
+          ) : isInitializing ? (
+            <div className="flex-1 flex items-center justify-center bg-slate-950/20 rounded-3xl border border-dashed border-indigo-500/30">
+               <div className="flex flex-col items-center gap-4">
+                 <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                 <p className="text-[10px] font-mono text-indigo-400 uppercase tracking-[0.2em] animate-pulse">Initializing Secure Channel...</p>
+               </div>
+            </div>
           ) : (
             <motion.section
               initial={{ scale: 0.98, opacity: 0 }}
