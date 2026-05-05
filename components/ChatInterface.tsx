@@ -3,7 +3,7 @@ import { DataConnection } from 'peerjs';
 import { ChatMessage, MessageType, UserProfile, AiConfig } from '../types';
 import Swal from 'sweetalert2';
 import Button from './Button';
-import { Send, Paperclip, FileText, Download, Sparkles, Bot } from 'lucide-react';
+import { Send, Paperclip, FileText, Download, Sparkles, Bot, FileImage, FileAudio, FileVideo, FileCode, FileArchive, File as FileIcon } from 'lucide-react';
 import * as aiService from '../services/aiService';
 import { generateUUID } from '../utils';
 
@@ -56,10 +56,36 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
       timestamp: Date.now()
     };
 
-    connections.forEach(conn => conn.send(msg));
     onSendMessage(msg);
     setInputText('');
     setSuggestedReplies([]); // Clear suggestions after sending
+  };
+
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  const getFileIcon = (fileName: string, fileType?: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    
+    if (fileType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) {
+      return <FileImage className="w-5 h-5 text-pink-500" />;
+    }
+    if (fileType?.startsWith('video/') || ['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) {
+      return <FileVideo className="w-5 h-5 text-purple-500" />;
+    }
+    if (fileType?.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a'].includes(ext || '')) {
+      return <FileAudio className="w-5 h-5 text-amber-500" />;
+    }
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) {
+      return <FileArchive className="w-5 h-5 text-yellow-600" />;
+    }
+    if (['js', 'ts', 'tsx', 'jsx', 'html', 'css', 'json', 'py', 'java', 'cpp'].includes(ext || '')) {
+      return <FileCode className="w-5 h-5 text-emerald-500" />;
+    }
+    if (['pdf'].includes(ext || '')) {
+      return <FileText className="w-5 h-5 text-red-500" />;
+    }
+    
+    return <FileIcon className="w-5 h-5 text-blue-500 dark:text-indigo-400" />;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,7 +99,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
           title: 'File Too Large',
           text: 'Maximum file size allowed is 2GB.',
           icon: 'warning',
-          confirmButtonColor: '#3b82f6'
+          background: isDark() ? '#0f172a' : '#ffffff',
+          color: isDark() ? '#f8fafc' : '#0f172a',
+          confirmButtonColor: '#3b82f6',
+          customClass: {
+            popup: 'rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl'
+          }
         });
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
@@ -91,7 +122,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
       timestamp: Date.now()
     };
     
-    connections.forEach(conn => conn.send(msg));
     onSendMessage(msg);
     
     // Reset input
@@ -228,7 +258,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
                     {msg.type === MessageType.FILE && (
                     <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-slate-50 dark:bg-black/20 rounded-xl mt-1">
                         <div className="bg-white dark:bg-slate-800 p-1.5 md:p-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <FileText className="w-4 h-4 md:w-5 md:h-5 text-blue-500 dark:text-blue-400" />
+                            {getFileIcon(msg.content, msg.fileType)}
                         </div>
                         <div className="overflow-hidden flex-1">
                         <p className="font-medium text-[10px] md:text-xs truncate text-slate-900 dark:text-slate-100">{msg.content}</p>

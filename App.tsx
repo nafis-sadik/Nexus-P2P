@@ -78,7 +78,26 @@ const App: React.FC = () => {
     }
   }, [user, peerInstance]);
 
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  const swalConfig = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => ({
+    title,
+    text,
+    icon,
+    background: isDark() ? '#0f172a' : '#ffffff',
+    color: isDark() ? '#f8fafc' : '#0f172a',
+    confirmButtonColor: '#4f46e5',
+    customClass: {
+      popup: 'rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl'
+    }
+  });
+
   const setupDataConnection = (conn: DataConnection) => {
+    // Prevent multiple listeners on the same connection object
+    conn.off('open');
+    conn.off('data');
+    conn.off('close');
+
     conn.on('open', () => {
       // Safety check: Avoid duplicate connections for the same peer
       if (dataConnectionsRef.current.has(conn.peer)) {
@@ -116,34 +135,19 @@ const App: React.FC = () => {
           const payload = JSON.parse(data.content);
           
           if (payload.action === 'REJECTED') {
-            Swal.fire({
-              title: 'Connection Rejected',
-              text: payload.reason === 'FULL' ? 'The session is full.' : payload.reason,
-              icon: 'error',
-              confirmButtonColor: '#4f46e5'
-            });
+            Swal.fire(swalConfig('Connection Rejected', payload.reason === 'FULL' ? 'The session is full.' : payload.reason, 'error'));
             return;
           }
 
           if (payload.action === 'KICKED') {
             leaveMeeting();
-            Swal.fire({
-              title: 'Removed from Meeting',
-              text: 'The host has removed you from the meeting.',
-              icon: 'warning',
-              confirmButtonColor: '#4f46e5'
-            });
+            Swal.fire(swalConfig('Removed from Meeting', 'The host has removed you from the meeting.', 'warning'));
             return;
           }
 
           if (payload.action === 'ROOM_DESTROYED') {
             leaveMeeting();
-            Swal.fire({
-              title: 'Meeting Ended',
-              text: 'The host has closed the meeting room.',
-              icon: 'info',
-              confirmButtonColor: '#4f46e5'
-            });
+            Swal.fire(swalConfig('Meeting Ended', 'The host has closed the meeting room.', 'info'));
             return;
           }
 
@@ -201,7 +205,11 @@ const App: React.FC = () => {
           console.error("System message parse error", e);
         }
       } else {
-        setMessages(prev => [...prev, data as ChatMessage]);
+        setMessages(prev => {
+          const chatMsg = data as ChatMessage;
+          if (prev.some(m => m.id === chatMsg.id)) return prev;
+          return [...prev, chatMsg];
+        });
       }
     });
 

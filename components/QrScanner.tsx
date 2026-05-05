@@ -20,6 +20,20 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = "qr-reader-internal";
 
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  const swalConfig = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => ({
+    title,
+    text,
+    icon,
+    background: isDark() ? '#0f172a' : '#ffffff',
+    color: isDark() ? '#f8fafc' : '#0f172a',
+    confirmButtonColor: '#4f46e5',
+    customClass: {
+      popup: 'rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl'
+    }
+  });
+
   const stopScanner = async () => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       try {
@@ -81,22 +95,12 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
           setSelectedCameraId(defaultId);
           await startScanner(defaultId);
         } else {
-          Swal.fire({
-            title: 'No Cameras',
-            text: 'No camera devices were found on this device.',
-            icon: 'error',
-            confirmButtonColor: '#4f46e5'
-          });
+          Swal.fire(swalConfig('No Cameras', 'No camera devices were found on this device.', 'error'));
           onClose();
         }
       } catch (err) {
         console.error("Camera init error:", err);
-        Swal.fire({
-          title: 'Permission Denied',
-          text: 'Could not access cameras. Please ensure permissions are granted in your browser settings.',
-          icon: 'error',
-          confirmButtonColor: '#4f46e5'
-        });
+        Swal.fire(swalConfig('Permission Denied', 'Could not access cameras. Please ensure permissions are granted in your browser settings.', 'error'));
         onClose();
       } finally {
         setIsInitializing(false);
