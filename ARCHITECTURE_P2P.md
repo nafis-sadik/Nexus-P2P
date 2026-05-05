@@ -3,9 +3,9 @@
 This document outlines the technical implementation of the Peer-to-Peer (P2P) communication system used in the Nexus P2P application.
 
 ## 1. Overview
-Nexus P2P uses **PeerJS**, a wrapper over the WebRTC API, to facilitate direct browser-to-browser communication in a multi-user, room-based architecture.
+Nexus P2P uses **PeerJS**, a wrapper over the WebRTC API, to facilitate direct browser-to-browser communication in a multi-user, meeting-based architecture.
 
-## 2. Architecture: Guest-Host Room Model
+## 2. Architecture: Guest-Host Meeting Model
 The application operates on a **Hybrid Star-Mesh Topology**. 
 
 ### The Star Component (Signaling & Identity)

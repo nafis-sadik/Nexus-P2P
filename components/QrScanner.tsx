@@ -111,7 +111,7 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-center gap-2">
             <Camera className="w-5 h-5 text-blue-500" />
-            <h3 className="font-bold">Scan Peer ID</h3>
+            <h3 className="font-bold">Scan Meeting ID</h3>
           </div>
           <button 
             onClick={onClose}

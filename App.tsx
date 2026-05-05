@@ -19,10 +19,16 @@ const App: React.FC = () => {
   const [peerState, setPeerState] = useState<PeerState>({
     myId: '',
     roomId: null,
+    mode: 'idle',
     isHost: false,
     participants: [],
     connectionError: null
   });
+  const peerStateRef = useRef<PeerState>(peerState);
+  
+  useEffect(() => {
+    peerStateRef.current = peerState;
+  }, [peerState]);
   
   const [dataConnections, setDataConnections] = useState<Map<string, DataConnection>>(new Map());
   const dataConnectionsRef = useRef<Map<string, DataConnection>>(new Map<string, DataConnection>());
@@ -33,6 +39,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanOrigin, setScanOrigin] = useState<'meeting' | 'peer'>('meeting');
   const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'info'>('chat');
 
   // Initialize PeerJS when user logs in
@@ -42,9 +49,19 @@ const App: React.FC = () => {
 
       newPeer.on('open', (id) => {
         setPeerState(prev => ({ ...prev, myId: id, connectionError: null }));
+        setUser(prev => prev ? { ...prev, id } : null);
       });
 
       newPeer.on('connection', (conn) => {
+        // Enforce Peer Mode limit: If we are in peer mode and already have 2 participants (us + someone), reject
+        if (peerStateRef.current.mode === 'peer' && peerStateRef.current.participants.length >= 2) {
+          console.warn("Rejecting connection: Session full (Peer Mode)");
+          conn.on('open', () => {
+             conn.send({ type: 'SYSTEM', content: JSON.stringify({ action: 'REJECTED', reason: 'FULL' }) });
+             setTimeout(() => conn.close(), 1000);
+          });
+          return;
+        }
         setupDataConnection(conn);
       });
 
@@ -72,6 +89,14 @@ const App: React.FC = () => {
       const newMap = new Map<string, DataConnection>(dataConnectionsRef.current).set(conn.peer, conn);
       dataConnectionsRef.current = newMap;
       setDataConnections(newMap);
+
+      // If we were idle, transition to Peer Mode on first incoming connection
+      setPeerState(prev => {
+        if (prev.mode === 'idle') {
+          return { ...prev, mode: 'peer' };
+        }
+        return prev;
+      });
     });
 
     conn.on('data', (data: any) => {
@@ -79,6 +104,23 @@ const App: React.FC = () => {
         try {
           const payload = JSON.parse(data.content);
           
+          if (payload.action === 'REJECTED') {
+            alert("Connection rejected: " + payload.reason);
+            return;
+          }
+
+          if (payload.action === 'KICKED') {
+            alert("You have been kicked from the meeting by the host.");
+            leaveMeeting();
+            return;
+          }
+
+          if (payload.action === 'ROOM_DESTROYED') {
+            alert("The host has ended the meeting.");
+            leaveMeeting();
+            return;
+          }
+
           if (payload.action === 'IDENTITY') {
             const remoteUser = payload.user;
             setPeerState(prev => {
@@ -101,10 +143,20 @@ const App: React.FC = () => {
 
           if (payload.action === 'PARTICIPANTS_UPDATE') {
             const updatedParticipants = payload.participants;
+            const updatedParticipantIds = new Set(updatedParticipants.map((p: any) => p.id));
+
+            // Prune connections to people who left or were kicked
+            dataConnectionsRef.current.forEach((conn, id) => {
+              // We don't prune the connection to the host if we are a guest
+              if (!updatedParticipantIds.has(id)) {
+                conn.close();
+              }
+            });
+
             setPeerState(prev => {
               // Connect to new peers we don't have connections with yet
               updatedParticipants.forEach((p: any) => {
-                const isMe = p.id === user!.id || p.id === peerInstance!.id;
+                const isMe = p.id === user!.id || p.id === prev.myId;
                 const alreadyConnected = dataConnectionsRef.current.has(p.id);
                 
                 if (!isMe && !alreadyConnected) {
@@ -129,10 +181,28 @@ const App: React.FC = () => {
       dataConnectionsRef.current = newMap;
       setDataConnections(newMap);
       
-      setPeerState(prev => ({
-        ...prev,
-        participants: prev.participants.filter(p => p.id !== conn.peer)
-      }));
+      setPeerState(prev => {
+        const nextParticipants = prev.participants.filter(p => p.id !== conn.peer);
+        
+        // If I am host, broadcast the updated list to everyone else
+        if (prev.isHost) {
+          const msg = {
+            type: 'SYSTEM',
+            content: JSON.stringify({
+              action: 'PARTICIPANTS_UPDATE',
+              participants: nextParticipants
+            }),
+            senderId: user!.id,
+            timestamp: Date.now()
+          };
+          newMap.forEach((c: DataConnection) => c.send(msg));
+        }
+        
+        return {
+          ...prev,
+          participants: nextParticipants
+        };
+      });
     });
   };
 
@@ -152,6 +222,7 @@ const App: React.FC = () => {
       ...prev, 
       roomId: prev.myId, 
       isHost: true,
+      mode: 'meeting',
       participants: [user!] 
     }));
   };
@@ -161,12 +232,19 @@ const App: React.FC = () => {
     
     const conn = peerInstance.connect(targetRoomId);
     setupDataConnection(conn);
-    setPeerState(prev => ({ ...prev, roomId: targetRoomId, isHost: false }));
+    setPeerState(prev => ({ ...prev, roomId: targetRoomId, isHost: false, mode: 'meeting' }));
   };
 
   const handleSendMessage = (msg: ChatMessage) => {
     setMessages(prev => [...prev, msg]);
     dataConnectionsRef.current.forEach((conn: DataConnection) => conn.send(msg));
+  };
+
+  const directConnect = () => {
+    if (!peerInstance || !targetRoomId) return;
+    const conn = peerInstance.connect(targetRoomId);
+    setPeerState(prev => ({ ...prev, roomId: targetRoomId, mode: 'peer', isHost: false }));
+    setupDataConnection(conn);
   };
 
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
@@ -177,6 +255,18 @@ const App: React.FC = () => {
   const handleScan = (decodedText: string) => {
     setTargetRoomId(decodedText);
     setIsScanning(false);
+    
+    if (decodedText && peerInstance) {
+      const conn = peerInstance.connect(decodedText);
+      setupDataConnection(conn);
+      // Use scanOrigin to determine mode
+      setPeerState(prev => ({ 
+        ...prev, 
+        roomId: decodedText, 
+        isHost: false, 
+        mode: scanOrigin 
+      }));
+    }
   };
 
   const downloadQrCode = () => {
@@ -186,13 +276,58 @@ const App: React.FC = () => {
     const url = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.href = url;
-    link.download = `nexus-room-id-${peerState.myId.slice(0, 8)}.png`;
+    link.download = `nexus-meeting-id-${peerState.myId.slice(0, 8)}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  const kickParticipant = (participantId: string) => {
+    if (!peerState.isHost) return;
+    
+    const conn = dataConnectionsRef.current.get(participantId);
+    if (conn) {
+      // Notify the user they are kicked
+      conn.send({ 
+        type: 'SYSTEM', 
+        content: JSON.stringify({ action: 'KICKED' }),
+        senderId: user!.id 
+      });
+
+      // Update state and broadcast to others
+      setPeerState(prev => {
+        const nextParticipants = prev.participants.filter(p => p.id !== participantId);
+        
+        // Broadcast specifically excluding the kicked person (who we are about to close)
+        const updateMsg = {
+          type: 'SYSTEM',
+          content: JSON.stringify({
+            action: 'PARTICIPANTS_UPDATE',
+            participants: nextParticipants
+          }),
+          senderId: user!.id,
+          timestamp: Date.now()
+        };
+        
+        dataConnectionsRef.current.forEach((c, id) => {
+          if (id !== participantId) {
+            c.send(updateMsg);
+          }
+        });
+
+        return { ...prev, participants: nextParticipants };
+      });
+      
+      // Close the connection
+      setTimeout(() => conn.close(), 500);
+    }
+  };
+
   const leaveMeeting = () => {
+    if (peerState.isHost && peerState.mode === 'meeting') {
+      broadcastSystemMessage({ action: 'ROOM_DESTROYED' });
+    }
+    
     dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
     dataConnectionsRef.current = new Map<string, DataConnection>();
     setDataConnections(new Map<string, DataConnection>());
@@ -200,6 +335,7 @@ const App: React.FC = () => {
       ...prev, 
       roomId: null, 
       isHost: false,
+      mode: 'idle',
       participants: [] 
     }));
     setMessages([]);
@@ -344,6 +480,16 @@ const App: React.FC = () => {
                   <p className="font-mono text-[11px] font-medium text-blue-600 dark:text-blue-400/90 truncate flex-1">{peerState.roomId || peerState.myId || 'GENERATING ID...'}</p>
                   <div className="flex gap-1">
                     <button 
+                      onClick={() => {
+                        setScanOrigin('peer');
+                        setIsScanning(true);
+                      }}
+                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+                      title="Scan to Direct Connect (Peer Mode)"
+                    >
+                      <Scan className="w-4 h-4" />
+                    </button>
+                    <button 
                       onClick={() => setShowQr(!showQr)}
                       className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
                       title={showQr ? "Hide QR Code" : "Show QR Code"}
@@ -403,7 +549,9 @@ const App: React.FC = () => {
               </AnimatePresence>
               
               <div className="flex items-center justify-between text-[10px] pt-1">
-                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">Room Mode</span>
+                <span className="text-slate-400 dark:text-slate-500 font-mono uppercase tracking-tighter opacity-70">
+                  {peerState.mode === 'meeting' ? 'Meeting Mode' : 'Peer Mode'}
+                </span>
                 <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest ${
                   peerState.isHost ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 
                   isConnected ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]' :
@@ -418,7 +566,15 @@ const App: React.FC = () => {
           {/* Connection Trigger Card */}
           {!isConnected ? (
             <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl transition-all duration-300">
-              <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-5">Start Meeting</h2>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Start Meeting</h2>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 text-right">Meeting Mode</p>
+                  <span className="px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-widest bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800">
+                    IDLE
+                  </span>
+                </div>
+              </div>
               <div className="space-y-4">
                 <Button 
                   onClick={hostMeeting}
@@ -437,28 +593,41 @@ const App: React.FC = () => {
                 <div className="relative group/input">
                   <input 
                     type="text"
-                    placeholder="ENTER HOST ROOM ID"
+                    placeholder="ENTER HOST MEETING ID"
                     value={targetRoomId}
                     onChange={(e) => setTargetRoomId(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 pr-24 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <button
-                      onClick={() => setIsScanning(true)}
+                      onClick={() => {
+                        setScanOrigin('meeting');
+                        setIsScanning(true);
+                      }}
                       className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                      title="Scan Room QR"
+                      title="Scan Meeting QR"
                     >
                       <Scan className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                <Button 
-                  onClick={joinMeeting}
-                  disabled={!targetRoomId || !peerState.myId}
-                  className="w-full py-6 rounded-xl border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-bold tracking-[0.2em] text-[10px] uppercase group border"
-                >
-                  Join Meeting
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    onClick={joinMeeting}
+                    disabled={!targetRoomId || !peerState.myId}
+                    className="py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group"
+                  >
+                    Join Meeting
+                  </Button>
+                  <Button 
+                    onClick={directConnect}
+                    disabled={!targetRoomId || !peerState.myId}
+                    variant="secondary"
+                    className="py-4 rounded-xl font-bold tracking-[0.1em] text-[8px] uppercase ring-1 ring-slate-200 dark:ring-slate-800"
+                  >
+                    Connect Peer
+                  </Button>
+                </div>
               </div>
             </section>
           ) : (
@@ -469,18 +638,31 @@ const App: React.FC = () => {
               </h2>
               <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                 {peerState.participants.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/50">
+                  <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/50 group/participant">
                     <img src={p.avatarUrl} alt={p.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold truncate">{p.name} {p.id === user?.id && <span className="text-blue-500 ml-1">(You)</span>}</p>
+                      <p className="text-[11px] font-bold truncate">
+                        {p.name} 
+                        {p.id === user?.id && <span className="text-blue-500 ml-1">(You)</span>}
+                        {p.id === peerState.roomId && <span className="text-indigo-500 ml-1 text-[8px] uppercase tracking-tighter opacity-70">Host</span>}
+                      </p>
                       <p className="text-[8px] font-mono text-slate-400 truncate tracking-tight">{p.id}</p>
                     </div>
+                    {peerState.isHost && p.id !== user?.id && (
+                      <button
+                        onClick={() => kickParticipant(p.id)}
+                        className="opacity-0 group-hover/participant:opacity-100 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
+                        title="Kick Participant"
+                      >
+                        <LogOut className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
               <Button 
                 onClick={leaveMeeting}
-                className="w-full mt-4 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-bold tracking-widest text-[9px] uppercase transition-all"
+                className="w-full mt-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/10 font-bold tracking-widest text-[9px] uppercase transition-all border-none"
               >
                 Leave Meeting
               </Button>

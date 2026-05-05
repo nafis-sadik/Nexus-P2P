@@ -35,9 +35,12 @@ export interface AiConfig {
   modelName?: string;
 }
 
+export type SessionMode = 'idle' | 'peer' | 'meeting';
+
 export interface PeerState {
   myId: string;
   roomId: string | null;
+  mode: SessionMode;
   isHost: boolean;
   participants: Participant[];
   connectionError: string | null;

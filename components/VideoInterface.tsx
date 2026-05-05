@@ -144,7 +144,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({ peer, remotePeerId, inc
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 relative transition-colors duration-300">
       <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
         <h3 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-           <Activity className="w-4 h-4 text-emerald-500" /> Room Feed
+           <Activity className="w-4 h-4 text-emerald-500" /> Meeting Feed
         </h3>
         {activeCalls.size > 0 && <div className="text-[10px] font-mono text-emerald-500 animate-pulse uppercase font-bold tracking-widest">{activeCalls.size} Active</div>}
       </div>

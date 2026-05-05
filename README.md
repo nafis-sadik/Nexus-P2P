@@ -46,7 +46,7 @@ mindmap
 
 ## Features
 
-*   **Multi-User Room Support**: Host meetings or join existing ones via Room IDs.
+*   **Multi-User Meeting Support**: Host meetings or join existing ones via Meeting IDs.
 *   **Star-Mesh Topology**: Seamlessly connect with multiple participants in a single session.
 *   **P2P Video/Voice Grid**: Handles multiple video streams in a dynamic layout.
 *   **Screen Sharing**: Toggle between camera and screen share.
