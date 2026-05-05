@@ -2,6 +2,27 @@
 
 A WebRTC Peer-to-Peer communication app with Chat, Video, Screen Sharing, and Gemini AI integration.
 
+```mermaid
+mindmap
+  root((Nexus P2P))
+    Communication
+      Video/Voice Call
+      Screen Share
+      Secure Chat
+      File Sharing
+    Intelligence
+      Smart Replies
+      Summaries
+      AI Settings
+    Security
+      Direct P2P
+      No Persistence
+      Encrypted
+    Utilities
+      QR Sharing
+      Dark Mode
+```
+
 ## How to Run
 
 1.  **Install Dependencies**:
@@ -30,3 +51,7 @@ A WebRTC Peer-to-Peer communication app with Chat, Video, Screen Sharing, and Ge
 *   **Secure Chat**: Direct peer-to-peer data connection.
 *   **File Sharing**: Send files directly to peers (size limit ~500KB for stability).
 *   **AI Integration**: Uses Gemini Flash 2.5 for Smart Replies and Conversation Summaries.
+
+## Documentation
+
+For a detailed explanation of the project's technical implementation of Peer-to-Peer communication, see the [ARCHITECTURE_P2P.md](./ARCHITECTURE_P2P.md) file.

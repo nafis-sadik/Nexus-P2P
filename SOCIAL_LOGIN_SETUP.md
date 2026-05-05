@@ -2,6 +2,17 @@
 
 This guide explains how to replace the current mock login system with real social authentication using Firebase.
 
+```mermaid
+graph TD
+    User[User] -->|Clicks Login| ProviderChoice{Provider?}
+    ProviderChoice -->|Google| GoogleAuth[Google Auth Popup]
+    ProviderChoice -->|GitHub| GitHubAuth[GitHub Auth Popup]
+    GoogleAuth -->|Success| FirebaseSuccess[Firebase Auth Success]
+    GitHubAuth -->|Success| FirebaseSuccess
+    FirebaseSuccess -->|Map to Local User| App[Nexus P2P App]
+    FirebaseSuccess -->|Error| ErrorAlert[Show Error Message]
+```
+
 ## Step 1: Create a Firebase Project
 1. Visit the [Firebase Console](https://console.firebase.google.com/).
 2. Click **"Add project"** and follow the setup wizard (you can disable Google Analytics for now).
