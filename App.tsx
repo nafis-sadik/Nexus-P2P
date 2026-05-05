@@ -258,7 +258,7 @@ const App: React.FC = () => {
         <motion.aside 
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className={`w-full md:w-80 flex flex-col gap-4 md:gap-6 flex-shrink-0 md:h-full md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar ${peerState.isConnectionOpen && activeTab !== 'info' && 'hidden md:flex'}`}
+          className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-4 md:gap-6 flex-shrink-0 md:overflow-y-auto md:overflow-x-hidden md:pr-2 custom-scrollbar ${peerState.isConnectionOpen && activeTab !== 'info' && 'hidden md:flex'}`}
         >
           {/* Status Card */}
           <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl relative group transition-all duration-300">
@@ -399,10 +399,10 @@ const App: React.FC = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-6 bg-green-500/5 rounded-xl border border-green-500/10 shadow-inner"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 px-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-green-600 dark:text-green-400 font-bold text-[10px] tracking-[0.2em] uppercase text-left">Private Link Active</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-1 truncate">{peerState.connectedPeerId}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-600 font-mono mt-1 truncate text-left">{peerState.connectedPeerId}</p>
                     </div>
                     <button 
                       onClick={disconnect}
@@ -444,8 +444,8 @@ const App: React.FC = () => {
           </div>
         </motion.aside>
 
-        {/* Center Panel - Interaction */}
-        <div className={`flex-1 flex flex-col h-full min-w-0 min-h-0 ${peerState.isConnectionOpen && activeTab !== 'chat' && 'hidden md:flex'}`}>
+        {/* Center Panel - Interaction (Now Video Feed) */}
+        <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${peerState.isConnectionOpen && activeTab !== 'video' && 'hidden md:flex'}`}>
           {!peerState.isConnectionOpen ? (
              <div className="flex-1 flex items-center justify-center bg-slate-950/20 rounded-3xl border border-dashed border-slate-800 relative group">
                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 rounded-3xl" />
@@ -470,30 +470,30 @@ const App: React.FC = () => {
               animate={{ scale: 1, opacity: 1 }}
               className="flex-1 min-h-0 flex flex-col"
             >
-              <ChatInterface 
-                connection={dataConnection} 
-                currentUser={user}
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                aiConfig={aiConfig}
+              <VideoInterface 
+                peer={peerInstance!} 
+                remotePeerId={peerState.connectedPeerId!} 
+                incomingCall={incomingCall}
+                onCallEnd={() => setIncomingCall(null)}
               />
             </motion.section>
           )}
         </div>
 
-        {/* Right Panel - Video Feed */}
+        {/* Right Panel - Private Messages */}
         {peerState.isConnectionOpen && (
           <motion.aside 
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className={`w-full md:w-80 h-full flex flex-col gap-6 flex-shrink-0 min-h-0 ${activeTab !== 'video' && 'hidden md:flex'}`}
+            className={`w-full md:w-80 flex-1 md:h-full flex flex-col gap-6 flex-shrink-0 min-h-0 ${activeTab !== 'chat' && 'hidden md:flex'}`}
           >
-            <VideoInterface 
-              peer={peerInstance!} 
-              remotePeerId={peerState.connectedPeerId!} 
-              incomingCall={incomingCall}
-              onCallEnd={() => setIncomingCall(null)}
+            <ChatInterface 
+              connection={dataConnection} 
+              currentUser={user}
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              aiConfig={aiConfig}
             />
           </motion.aside>
         )}

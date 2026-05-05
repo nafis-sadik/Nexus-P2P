@@ -276,11 +276,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
       </AnimatePresence>
 
       {/* Input Area */}
-      <div className="p-3 md:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="p-2 md:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div className="flex items-center gap-1.5 md:gap-2">
            <Button 
             variant="ghost" 
-            className={`p-2 h-9 w-9 md:h-10 md:w-10 rounded-full transition-colors ${isAiEnabled ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20' : 'text-slate-300 dark:text-slate-600 grayscale opacity-30 cursor-not-allowed'}`}
+            className={`p-2 h-9 w-9 md:h-10 md:w-10 rounded-full flex-shrink-0 transition-colors ${isAiEnabled ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20' : 'text-slate-300 dark:text-slate-600 grayscale opacity-30 cursor-not-allowed'}`}
             onClick={handleAiSuggestions}
             disabled={isAiThinking}
             title={isAiEnabled ? "AI Smart Reply" : "AI Disabled (Configure in Settings)"}
@@ -290,7 +290,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
 
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex-shrink-0"
+            className="p-1.5 md:p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex-shrink-0"
             title="Send File (Max 2GB)"
           >
             <Paperclip className="w-5 h-5 md:w-6 md:h-6" />
@@ -308,14 +308,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connection, currentUser, 
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
             placeholder={connection ? "Type a message..." : "Waiting..."}
-            className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-full px-4 md:px-5 py-2 md:py-2.5 focus:ring-1 focus:ring-blue-500/50 text-xs md:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-all"
+            className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-full px-3 md:px-5 py-2 md:py-2.5 focus:ring-1 focus:ring-blue-500/50 text-xs md:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 outline-none transition-all"
             disabled={!connection}
           />
           
           <Button 
             onClick={() => handleSendText()} 
             disabled={!connection || !inputText.trim()}
-            className="rounded-full w-9 h-9 md:w-10 md:h-10 p-0 flex items-center justify-center bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20 flex-shrink-0"
+            className="rounded-full w-9 h-9 md:w-10 md:h-10 p-0 flex-shrink-0 flex items-center justify-center bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"
           >
             <Send className="w-5 h-5 md:w-6 md:h-6" />
           </Button>
