@@ -161,7 +161,19 @@ const App: React.FC = () => {
   // Initialize PeerJS when user clicks Host, Peer, or Join
   useEffect(() => {
     if (user && !peerInstance && (peerState.mode !== 'idle' || targetRoomId)) {
-      const newPeer = new Peer();
+      const newPeer = new Peer({
+        debug: 3,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+          ],
+          sdpSemantics: 'unified-plan'
+        }
+      });
 
       newPeer.on('open', (id) => {
         setPeerState(prev => {
@@ -196,7 +208,13 @@ const App: React.FC = () => {
       });
 
       newPeer.on('error', (err) => {
+        console.error("PeerJS Error:", err);
         setPeerState(prev => ({ ...prev, connectionError: err.message }));
+      });
+
+      newPeer.on('disconnected', () => {
+        console.warn("Peer disconnected from discovery server. Attempting to reconnect...");
+        setTimeout(() => newPeer.reconnect(), 1000);
       });
 
       setPeerInstance(newPeer);
@@ -221,12 +239,16 @@ const App: React.FC = () => {
   const getFormattedPersonalId = (id: string) => `NEX_P_${id}`;
 
   const setupDataConnection = (conn: DataConnection) => {
+    console.log(`Setting up data connection with: ${conn.peer}`);
+    
     // Prevent multiple listeners on the same connection object
     conn.off('open');
     conn.off('data');
     conn.off('close');
+    conn.off('error');
 
     conn.on('open', () => {
+      console.log(`Connection opened with: ${conn.peer}`);
       // Safety check: Avoid duplicate connections for the same peer
       if (dataConnectionsRef.current.has(conn.peer)) {
         const existing = dataConnectionsRef.current.get(conn.peer);
@@ -237,12 +259,17 @@ const App: React.FC = () => {
         }
       }
 
-      // Send our profile info immediately
-      conn.send({ 
-        type: 'SYSTEM', 
-        content: JSON.stringify({ action: 'IDENTITY', user }), 
-        senderId: user!.id 
-      });
+      // Send our profile info after a small delay to ensure data channel is ready
+      setTimeout(() => {
+        if (conn.open) {
+          console.log(`Sending IDENTITY to: ${conn.peer}`);
+          conn.send({ 
+            type: 'SYSTEM', 
+            content: JSON.stringify({ action: 'IDENTITY', user }), 
+            senderId: user!.id 
+          });
+        }
+      }, 800);
       
       const newMap = new Map<string, DataConnection>(dataConnectionsRef.current).set(conn.peer, conn);
       dataConnectionsRef.current = newMap;
@@ -258,6 +285,7 @@ const App: React.FC = () => {
     });
 
     conn.on('data', (data: any) => {
+      console.log(`Received data from ${conn.peer}:`, data.type);
       if (data.type === 'SYSTEM') {
         try {
           const payload = JSON.parse(data.content);
@@ -321,7 +349,7 @@ const App: React.FC = () => {
                   // Lexicographical tie-breaker: Only the peer with the "smaller" ID initiates the connection.
                   // This prevents both peers from connecting to each other simultaneously.
                   if (prev.myId < p.id) {
-                    const newConn = peerInstance!.connect(p.id);
+                    const newConn = peerInstance!.connect(p.id, { reliable: true });
                     setupDataConnection(newConn);
                   }
                 }
@@ -341,7 +369,12 @@ const App: React.FC = () => {
       }
     });
 
+    conn.on('error', (err) => {
+      console.error(`Data connection error with ${conn.peer}:`, err);
+    });
+
     conn.on('close', () => {
+      console.log(`Connection closed with: ${conn.peer}`);
       const newMap = new Map<string, DataConnection>(dataConnectionsRef.current);
       newMap.delete(conn.peer);
       dataConnectionsRef.current = newMap;
@@ -414,7 +447,7 @@ const App: React.FC = () => {
     const realPeerId = trimmedId.replace('NEX_M_', '');
     
     if (peerInstance) {
-      const conn = peerInstance.connect(realPeerId);
+      const conn = peerInstance.connect(realPeerId, { reliable: true });
       setupDataConnection(conn);
     }
     
@@ -438,7 +471,7 @@ const App: React.FC = () => {
     const realPeerId = trimmedId.replace('NEX_P_', '');
     
     if (peerInstance) {
-      const conn = peerInstance.connect(realPeerId);
+      const conn = peerInstance.connect(realPeerId, { reliable: true });
       setupDataConnection(conn);
     }
 
@@ -476,7 +509,7 @@ const App: React.FC = () => {
       }
 
       const realId = decodedText.replace('NEX_M_', '').replace('NEX_P_', '');
-      const conn = peerInstance.connect(realId);
+      const conn = peerInstance.connect(realId, { reliable: true });
       setupDataConnection(conn);
       
       setPeerState(prev => ({ 
