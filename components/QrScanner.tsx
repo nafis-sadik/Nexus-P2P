@@ -129,7 +129,7 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
             <Camera className="w-5 h-5 text-blue-500" />
             <h3 className="font-bold">Scan Meeting ID</h3>
           </div>
-          <Tooltip content="Close Scanner">
+          <Tooltip content="Close Scanner" position="bottom">
             <button 
               onClick={onClose}
               className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"

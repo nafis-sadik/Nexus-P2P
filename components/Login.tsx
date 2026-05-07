@@ -17,8 +17,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     
     // Simulate API call with provider-specific mock data
     setTimeout(() => {
+      const storedId = localStorage.getItem('nexus_user_id');
+      const userId = storedId || generateUUID();
+      if (!storedId) localStorage.setItem('nexus_user_id', userId);
+
       let mockUser: UserProfile = {
-        id: generateUUID(),
+        id: userId,
         name: `User-${Math.floor(Math.random() * 1000)}`,
         avatarUrl: `https://picsum.photos/200/200?random=${Math.floor(Math.random() * 1000)}`
       };

@@ -161,8 +161,10 @@ const App: React.FC = () => {
   // Initialize PeerJS when user clicks Host, Peer, or Join
   useEffect(() => {
     if (user && !peerInstance && (peerState.mode !== 'idle' || targetRoomId)) {
-      const newPeer = new Peer({
-        debug: 3,
+      console.log("Initializing Peer with ID:", user.id);
+      const newPeer = new Peer(user.id, {
+        debug: 1, // Reduce spam in production
+        pingInterval: 5000,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -170,12 +172,13 @@ const App: React.FC = () => {
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' },
-          ],
-          sdpSemantics: 'unified-plan'
+            { urls: 'stun:stun.services.mozilla.com' },
+          ]
         }
       });
 
       newPeer.on('open', (id) => {
+        console.log("Peer signaling open with ID:", id);
         setPeerState(prev => {
           const update = { ...prev, myId: id, connectionError: null };
           // If we were trying to host a meeting, set the roomId to our new ID
@@ -187,7 +190,7 @@ const App: React.FC = () => {
           }
           return update;
         });
-        setUser(prev => prev ? { ...prev, id } : null);
+        // No longer overwriting user.id since we passed it to constructor
       });
 
       newPeer.on('connection', (conn) => {
@@ -208,8 +211,29 @@ const App: React.FC = () => {
       });
 
       newPeer.on('error', (err) => {
-        console.error("PeerJS Error:", err);
-        setPeerState(prev => ({ ...prev, connectionError: err.message }));
+        console.error("PeerJS Global Error:", err.type, err.message);
+        let message = err.message;
+        
+        // Handle specific errors with more resilience
+        switch (err.type) {
+          case 'peer-unavailable':
+            message = `The Peer [${err.message.split(' ').pop()}] does not exist or is offline.`;
+            break;
+          case 'network':
+            message = "Signaling server connection lost. Check your internet.";
+            break;
+          case 'webrtc':
+            message = "WebRTC negotiation failed. This usually happens behind strict firewalls/NAT. Try using a VPN or different network.";
+            break;
+          case 'unavailable-id':
+            message = "This User ID is already in use. Please refresh or try again.";
+            break;
+          case 'socket-error':
+            message = "Connection to signaling server failed.";
+            break;
+        }
+        
+        setPeerState(prev => ({ ...prev, connectionError: message }));
       });
 
       newPeer.on('disconnected', () => {
@@ -246,6 +270,11 @@ const App: React.FC = () => {
     conn.off('data');
     conn.off('close');
     conn.off('error');
+
+    // Add error handler specific to this connection
+    conn.on('error', (err) => {
+      console.error(`DataConnection error with ${conn.peer}:`, err);
+    });
 
     conn.on('open', () => {
       console.log(`Connection opened with: ${conn.peer}`);
@@ -409,10 +438,12 @@ const App: React.FC = () => {
     const msg = {
       type: 'SYSTEM',
       content: JSON.stringify(payload),
-      senderId: user!.id,
+      senderId: user?.id,
       timestamp: Date.now()
     };
-    dataConnectionsRef.current.forEach((conn: DataConnection) => conn.send(msg));
+    dataConnectionsRef.current.forEach((conn: DataConnection) => {
+      if (conn.open) conn.send(msg);
+    });
   };
 
   const hostMeeting = () => {
@@ -546,7 +577,7 @@ const App: React.FC = () => {
         senderId: user!.id 
       });
 
-      // Update state and broadcast to others
+      // Update state
       setPeerState(prev => {
         const nextParticipants = prev.participants.filter(p => p.id !== participantId);
         
@@ -562,7 +593,7 @@ const App: React.FC = () => {
         };
         
         dataConnectionsRef.current.forEach((c, id) => {
-          if (id !== participantId) {
+          if (id !== participantId && c.open) {
             c.send(updateMsg);
           }
         });
@@ -576,7 +607,20 @@ const App: React.FC = () => {
   };
 
   const leaveMeeting = () => {
-    dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
+    if (peerState.isHost) {
+      broadcastSystemMessage({ action: 'ROOM_DESTROYED' });
+      // Give some time for messages to be sent before closing
+      setTimeout(() => {
+        dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
+        resetP2PState();
+      }, 500);
+    } else {
+      dataConnectionsRef.current.forEach((conn: DataConnection) => conn.close());
+      resetP2PState();
+    }
+  };
+
+  const resetP2PState = () => {
     dataConnectionsRef.current = new Map<string, DataConnection>();
     setDataConnections(new Map<string, DataConnection>());
     setPeerState(prev => ({ 
@@ -649,6 +693,7 @@ const App: React.FC = () => {
             onClick={() => setIsSettingsOpen(true)}
             className={`p-1.5 md:p-2 rounded-xl transition-all flex items-center gap-2 border-none h-auto ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             tooltip="Configure AI & Model Settings"
+            tooltipPosition="bottom"
           >
             <Bot className="w-5 h-5 md:w-5 md:h-5" />
             <span className="text-xs font-semibold hidden lg:block">{aiConfig ? 'AI READY' : 'SETUP AI'}</span>
@@ -660,7 +705,7 @@ const App: React.FC = () => {
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user.name}</span>
             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">My Account</span>
           </div>
-          <Tooltip content="Your Profile Info">
+          <Tooltip content="Your Profile Info" position="bottom">
             <motion.div 
               whileHover={{ scale: 1.1 }}
               className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm flex-shrink-0"
@@ -679,6 +724,7 @@ const App: React.FC = () => {
               setUser(null);
             }}
             tooltip="Logout from Nexus P2P"
+            tooltipPosition="bottom"
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
             <span className="text-[10px] md:text-xs font-bold text-slate-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest hidden sm:inline">Logout</span>
@@ -841,6 +887,7 @@ const App: React.FC = () => {
                     onClick={hostMeeting}
                     className="w-full py-3.5 rounded-xl transition-all shadow-lg font-bold tracking-[0.05em] text-[8px] uppercase group whitespace-nowrap bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"
                     tooltip="Start a Group Meeting"
+                    tooltipPosition="bottom"
                   >
                     <Sparkles className="w-3 h-3 mr-1.5 inline-block text-amber-400" />
                     Host
@@ -850,6 +897,7 @@ const App: React.FC = () => {
                     variant="secondary"
                     className="w-full py-3.5 text-[8px] font-bold uppercase tracking-widest rounded-xl border transition-all shadow-sm whitespace-nowrap border-indigo-200 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
                     tooltip="Start a Direct Peer Connection"
+                    tooltipPosition="bottom"
                   >
                     <Zap className="w-3 h-3 mr-1.5 inline-block text-amber-500" />
                     Peer
@@ -871,8 +919,8 @@ const App: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 w-full">
-                <div className="relative flex-[4] group/input">
+              <div className="flex items-center gap-2 w-full justify-between">
+                <div className="relative flex-1 group/input">
                   <input 
                     type="text"
                     placeholder="ENTER ID (NEX_M_ OR NEX_P_)"
@@ -882,7 +930,7 @@ const App: React.FC = () => {
                     className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <Tooltip content="Scan QR Code">
+                    <Tooltip content="Scan QR Code" position="bottom">
                       <button
                         onClick={() => {
                           setIsScanning(true);
@@ -894,12 +942,13 @@ const App: React.FC = () => {
                     </Tooltip>
                   </div>
                 </div>
-                <div className="flex-none">
+                <div>
                   <Button 
                     onClick={handleJoin}
                     disabled={!targetRoomId}
-                    className="py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group whitespace-nowrap"
+                    className="py-3 px-6 h-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group whitespace-nowrap"
                     tooltip="Join Session"
+                    tooltipPosition="bottom"
                   >
                     Join
                   </Button>

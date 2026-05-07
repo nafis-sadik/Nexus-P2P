@@ -40,7 +40,7 @@ const AiSettings: React.FC<AiSettingsProps> = ({ config, onSave, onClose }) => {
             </div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">AI Configuration</h2>
           </div>
-          <Tooltip content="Close Settings">
+          <Tooltip content="Close Settings" position="bottom">
             <button 
               onClick={onClose}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"

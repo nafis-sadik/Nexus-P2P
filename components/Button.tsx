@@ -6,6 +6,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
   icon?: React.ReactNode;
   tooltip?: string;
+  tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 const Button: React.FC<ButtonProps> = ({ 
@@ -14,6 +15,7 @@ const Button: React.FC<ButtonProps> = ({
   isLoading, 
   icon,
   tooltip,
+  tooltipPosition = 'top',
   className = '', 
   ...props 
 }) => {
@@ -45,8 +47,8 @@ const Button: React.FC<ButtonProps> = ({
   );
 
   if (tooltip) {
-    const widthClass = className.includes('w-full') ? 'w-full' : '';
-    return <Tooltip content={tooltip} className={widthClass}>{buttonElement}</Tooltip>;
+    const widthClass = className.includes('w-full') ? 'w-full' : (className.includes('flex-1') ? 'flex-1' : '');
+    return <Tooltip content={tooltip} className={widthClass} position={tooltipPosition}>{buttonElement}</Tooltip>;
   }
 
   return buttonElement;
