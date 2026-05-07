@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AiConfig, AiProvider } from '../types';
 import Button from './Button';
+import Tooltip from './Tooltip';
 import { Bot, Save, X, Globe, Key, Tag } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -39,12 +40,14 @@ const AiSettings: React.FC<AiSettingsProps> = ({ config, onSave, onClose }) => {
             </div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">AI Configuration</h2>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <Tooltip content="Close Settings">
+            <button 
+              onClick={onClose}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </Tooltip>
         </div>
 
         <div className="space-y-6">
@@ -53,17 +56,18 @@ const AiSettings: React.FC<AiSettingsProps> = ({ config, onSave, onClose }) => {
             <label className="block text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 ml-1">AI Provider</label>
             <div className="grid grid-cols-3 gap-2">
               {(['gemini', 'ollama', 'openrouter'] as AiProvider[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setProvider(p)}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                    provider === p 
-                    ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' 
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                  }`}
-                >
-                  {p.toUpperCase()}
-                </button>
+                <Tooltip key={p} content={`Switch to ${p === 'gemini' ? 'Google Gemini' : p === 'ollama' ? 'Local Ollama' : 'OpenRouter Unified API'}`}>
+                  <button
+                    onClick={() => setProvider(p)}
+                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                      provider === p 
+                      ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' 
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    {p.toUpperCase()}
+                  </button>
+                </Tooltip>
               ))}
             </div>
           </div>

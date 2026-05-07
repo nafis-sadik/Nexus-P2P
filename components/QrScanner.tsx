@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeCameraScanConfig } from 'html5-qrcode';
 import Swal from 'sweetalert2';
 import { X, Camera, RefreshCw } from 'lucide-react';
+import Tooltip from './Tooltip';
 
 interface QrScannerProps {
   onScan: (decodedText: string) => void;
@@ -128,12 +129,14 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, onClose }) => {
             <Camera className="w-5 h-5 text-blue-500" />
             <h3 className="font-bold">Scan Meeting ID</h3>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
+          <Tooltip content="Close Scanner">
+            <button 
+              onClick={onClose}
+              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
+          </Tooltip>
         </div>
         
         <div className="p-2 space-y-4">

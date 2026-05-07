@@ -123,6 +123,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({
                 onClick={toggleMute} 
                 variant="ghost"
                 className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isMuted ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+                tooltip={isMuted ? "Unmute Microphone" : "Mute Microphone"}
             >
                 {isMuted ? <MicOff className="w-4 h-4 md:w-5 md:h-5" /> : <Mic className="w-4 h-4 md:w-5 md:h-5" />}
             </Button>
@@ -131,6 +132,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({
                 onClick={toggleVideo} 
                 variant="ghost"
                 className={`rounded-xl h-10 w-10 md:h-12 md:w-12 p-0 flex items-center justify-center border transition-all ${isVideoOff ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+                tooltip={isVideoOff ? "Turn Video On" : "Turn Video Off"}
             >
                 {isVideoOff ? <VideoOff className="w-4 h-4 md:w-5 md:h-5" /> : <VideoIcon className="w-4 h-4 md:w-5 md:h-5" />}
             </Button>
@@ -139,6 +141,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({
                 <Button 
                     onClick={onStartCall} 
                     className="rounded-full bg-blue-600 hover:bg-blue-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 text-white min-w-[120px]"
+                    tooltip="Broadcast your video to participants"
                 >
                     Start Video
                 </Button>
@@ -147,6 +150,7 @@ const VideoInterface: React.FC<VideoInterfaceProps> = ({
                     onClick={onEndCall} 
                     variant="danger" 
                     className="rounded-full bg-red-600 hover:bg-red-500 px-6 py-3 md:py-4 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-red-600/20 text-white min-w-[120px]"
+                    tooltip="End video call with everyone"
                 >
                     End Call
                 </Button>

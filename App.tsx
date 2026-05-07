@@ -14,6 +14,8 @@ import { copyToClipboard } from './utils';
 import { QRCodeCanvas } from 'qrcode.react';
 import QrScanner from './components/QrScanner';
 
+import Tooltip from './components/Tooltip';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
@@ -443,6 +445,18 @@ const App: React.FC = () => {
     setPeerState(prev => ({ ...prev, roomId: realPeerId, mode: 'peer', isHost: false }));
   };
 
+  const handleJoin = () => {
+    if (!targetRoomId) return;
+    const trimmedId = targetRoomId.trim();
+    if (trimmedId.startsWith('NEX_M_')) {
+      joinMeeting();
+    } else if (trimmedId.startsWith('NEX_P_')) {
+      directConnect();
+    } else {
+      Swal.fire(swalConfig('Invalid ID', 'Please enter a valid Meeting ID (starts with NEX_M_) or Personal ID (starts with NEX_P_).', 'error'));
+    }
+  };
+
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(() => {
     const saved = localStorage.getItem('nexus-ai-config');
     return saved ? JSON.parse(saved) : null;
@@ -597,14 +611,15 @@ const App: React.FC = () => {
           
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-2 hidden sm:block" />
 
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setIsSettingsOpen(true)}
-            className={`p-1.5 md:p-2 rounded-xl transition-all flex items-center gap-2 ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-            title="AI Settings"
+            className={`p-1.5 md:p-2 rounded-xl transition-all flex items-center gap-2 border-none h-auto ${aiConfig ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            tooltip="Configure AI & Model Settings"
           >
             <Bot className="w-5 h-5 md:w-5 md:h-5" />
             <span className="text-xs font-semibold hidden lg:block">{aiConfig ? 'AI READY' : 'SETUP AI'}</span>
-          </button>
+          </Button>
           
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-2 hidden md:block" />
 
@@ -612,12 +627,14 @@ const App: React.FC = () => {
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user.name}</span>
             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-tighter">My Account</span>
           </div>
-          <motion.div 
-            whileHover={{ scale: 1.1 }}
-            className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm flex-shrink-0"
-          >
-            <img src={user.avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-          </motion.div>
+          <Tooltip content="Your Profile Info">
+            <motion.div 
+              whileHover={{ scale: 1.1 }}
+              className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden cursor-pointer shadow-sm flex-shrink-0"
+            >
+              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+            </motion.div>
+          </Tooltip>
           <Button 
             variant="ghost" 
             className="px-1.5 md:px-4 h-9 md:h-11 hover:bg-red-500/10 group border-none flex items-center gap-1.5 transition-all duration-300 rounded-xl flex-shrink-0" 
@@ -628,6 +645,7 @@ const App: React.FC = () => {
               }
               setUser(null);
             }}
+            tooltip="Logout from Nexus P2P"
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500 transition-colors" />
             <span className="text-[10px] md:text-xs font-bold text-slate-500 md:text-slate-400 md:group-hover:text-red-500 uppercase tracking-widest hidden sm:inline">Logout</span>
@@ -698,39 +716,42 @@ const App: React.FC = () => {
                           : (peerState.roomId ? getFormattedPersonalId(peerState.roomId) : (peerState.myId ? getFormattedPersonalId(peerState.myId) : 'GENERATING...'))}
                       </p>
                       <div className="flex gap-1">
-                        <button 
-                          onClick={() => {
-                            setIsScanning(true);
-                          }}
-                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
-                          title="Scan to Direct Connect (Peer Mode)"
-                        >
-                          <Scan className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => setShowQr(!showQr)}
-                          className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
-                          title={showQr ? "Hide QR Code" : "Show QR Code"}
-                        >
-                          <QrCode className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={copyId}
-                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
-                          title="Copy ID"
-                        >
-                          <AnimatePresence mode="wait">
-                            {copied ? (
-                              <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                                <Check className="w-4 h-4 text-green-500" />
-                              </motion.div>
-                            ) : (
-                              <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                                <Copy className="w-4 h-4" />
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </button>
+          <Tooltip content="Scan QR to Connect">
+            <button
+              onClick={() => {
+                setIsScanning(true);
+              }}
+              className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+            >
+              <Scan className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content={showQr ? "Hide QR Code" : "Show QR Code"}>
+            <button 
+              onClick={() => setShowQr(!showQr)}
+              className={`transition-colors p-1 rounded ${showQr ? 'text-blue-600 bg-blue-500/10' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white'}`}
+            >
+              <QrCode className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content={copied ? "Copied!" : "Copy ID"}>
+            <button 
+              onClick={copyId}
+              className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-white transition-colors p-1"
+            >
+              <AnimatePresence mode="wait">
+                {copied ? (
+                  <motion.div key="check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                    <Check className="w-4 h-4 text-green-500" />
+                  </motion.div>
+                ) : (
+                  <motion.div key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                    <Copy className="w-4 h-4" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+          </Tooltip>
                       </div>
                     </div>
                   </div>
@@ -756,13 +777,14 @@ const App: React.FC = () => {
                               style={{ width: '100%', height: '100%' }}
                             />
                           </div>
-                          <button 
+                          <Button 
                             onClick={downloadQrCode}
-                            className="flex items-center gap-2 text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity pb-1"
+                            className="flex items-center gap-2 text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest hover:opacity-80 transition-opacity pb-1 border-none bg-transparent h-auto"
+                            tooltip="Save QR to Gallery"
                           >
                             <Download className="w-3 h-3" />
                             Download QR
-                          </button>
+                          </Button>
                         </div>
                       </motion.div>
                     )}
@@ -781,10 +803,11 @@ const App: React.FC = () => {
               )}
 
               {peerState.mode === 'idle' && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 mt-2 w-full">
                   <Button 
                     onClick={hostMeeting}
-                    className="py-3.5 rounded-xl transition-all shadow-lg font-bold tracking-[0.05em] text-[8px] uppercase group whitespace-nowrap bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"
+                    className="w-full py-3.5 rounded-xl transition-all shadow-lg font-bold tracking-[0.05em] text-[8px] uppercase group whitespace-nowrap bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20"
+                    tooltip="Start a Group Meeting"
                   >
                     <Sparkles className="w-3 h-3 mr-1.5 inline-block text-amber-400" />
                     Host
@@ -792,7 +815,8 @@ const App: React.FC = () => {
                   <Button 
                     onClick={hostPeer}
                     variant="secondary"
-                    className="py-3.5 text-[8px] font-bold uppercase tracking-widest rounded-xl border transition-all shadow-sm whitespace-nowrap border-indigo-200 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
+                    className="w-full py-3.5 text-[8px] font-bold uppercase tracking-widest rounded-xl border transition-all shadow-sm whitespace-nowrap border-indigo-200 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
+                    tooltip="Start a Direct Peer Connection"
                   >
                     <Zap className="w-3 h-3 mr-1.5 inline-block text-amber-500" />
                     Peer
@@ -814,42 +838,37 @@ const App: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="relative group/input">
+              <div className="flex items-center gap-2 w-full">
+                <div className="relative flex-[4] group/input">
                   <input 
                     type="text"
-                    placeholder="ENTER HOST MEETING ID"
+                    placeholder="ENTER ID (NEX_M_ OR NEX_P_)"
                     value={targetRoomId}
                     onChange={(e) => setTargetRoomId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 pr-24 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
+                    onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-800 shadow-inner"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        setIsScanning(true);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                      title="Scan Meeting QR"
-                    >
-                      <Scan className="w-4 h-4" />
-                    </button>
+                    <Tooltip content="Scan QR Code">
+                      <button
+                        onClick={() => {
+                          setIsScanning(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                      >
+                        <Scan className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex-none">
                   <Button 
-                    onClick={joinMeeting}
+                    onClick={handleJoin}
                     disabled={!targetRoomId}
-                    className="py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group"
+                    className="py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/10 transition-all font-bold tracking-[0.1em] text-[8px] uppercase group whitespace-nowrap"
+                    tooltip="Join Session"
                   >
-                    Join Meeting
-                  </Button>
-                  <Button 
-                    onClick={directConnect}
-                    disabled={!targetRoomId}
-                    variant="secondary"
-                    className="py-4 rounded-xl font-bold tracking-[0.1em] text-[8px] uppercase ring-1 ring-slate-200 dark:ring-slate-800"
-                  >
-                    Connect Peer
+                    Join
                   </Button>
                 </div>
               </div>
@@ -873,13 +892,14 @@ const App: React.FC = () => {
                       <p className="text-[8px] font-mono text-slate-400 truncate tracking-tight">{p.id}</p>
                     </div>
                     {peerState.isHost && p.id !== user?.id && (
-                      <button
+                      <Button
                         onClick={() => kickParticipant(p.id)}
-                        className="opacity-0 group-hover/participant:opacity-100 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                        title="Kick Participant"
+                        variant="ghost"
+                        className="opacity-0 group-hover/participant:opacity-100 p-1.5 h-auto text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all border-none"
+                        tooltip="Kick Participant"
                       >
                         <LogOut className="w-3 h-3" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}
@@ -887,6 +907,7 @@ const App: React.FC = () => {
               <Button 
                 onClick={leaveMeeting}
                 className="w-full mt-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/10 font-bold tracking-widest text-[9px] uppercase transition-all border-none"
+                tooltip="Leave Current Session"
               >
                 Leave Meeting
               </Button>
@@ -1017,18 +1038,22 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => answerCall(call)}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-                >
-                  Accept
-                </button>
-                <button
-                  onClick={() => rejectCall(call)}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95"
-                >
-                  Decline
-                </button>
+                <Tooltip content="Join the call with your video">
+                  <button
+                    onClick={() => answerCall(call)}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95 px-4"
+                  >
+                    Accept
+                  </button>
+                </Tooltip>
+                <Tooltip content="Reject the incoming request">
+                  <button
+                    onClick={() => rejectCall(call)}
+                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95 px-4"
+                  >
+                    Decline
+                  </button>
+                </Tooltip>
               </div>
             </motion.div>
           ))}

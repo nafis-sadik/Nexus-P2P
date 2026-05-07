@@ -1,9 +1,11 @@
 import React from 'react';
+import Tooltip from './Tooltip';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   isLoading?: boolean;
   icon?: React.ReactNode;
+  tooltip?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({ 
@@ -11,6 +13,7 @@ const Button: React.FC<ButtonProps> = ({
   variant = 'primary', 
   isLoading, 
   icon,
+  tooltip,
   className = '', 
   ...props 
 }) => {
@@ -23,7 +26,7 @@ const Button: React.FC<ButtonProps> = ({
     ghost: "bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-transparent"
   };
 
-  return (
+  const buttonElement = (
     <button 
       className={`${baseStyles} ${variants[variant]} ${className}`}
       disabled={isLoading || props.disabled}
@@ -40,6 +43,13 @@ const Button: React.FC<ButtonProps> = ({
       {children}
     </button>
   );
+
+  if (tooltip) {
+    const widthClass = className.includes('w-full') ? 'w-full' : '';
+    return <Tooltip content={tooltip} className={widthClass}>{buttonElement}</Tooltip>;
+  }
+
+  return buttonElement;
 };
 
 export default Button;

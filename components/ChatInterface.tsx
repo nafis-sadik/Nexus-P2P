@@ -3,6 +3,7 @@ import { DataConnection } from 'peerjs';
 import { ChatMessage, MessageType, UserProfile, AiConfig } from '../types';
 import Swal from 'sweetalert2';
 import Button from './Button';
+import Tooltip from './Tooltip';
 import { Send, Paperclip, FileText, Download, Sparkles, Bot, FileImage, FileAudio, FileVideo, FileCode, FileArchive, File as FileIcon } from 'lucide-react';
 import * as aiService from '../services/aiService';
 import { generateUUID } from '../utils';
@@ -207,6 +208,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
                 className={`text-[9px] md:text-[10px] py-1 px-2 h-auto rounded-full border transition-all ${isAiEnabled ? 'text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-900/50 hover:bg-purple-50 dark:hover:bg-purple-900/20' : 'text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-50'}`}
                 onClick={handleSummarize}
                 disabled={isAiThinking}
+                tooltip="Get an AI summary of the chat"
             >
                 <Bot className="w-3 h-3 mr-1"/> Summarize
             </Button>
@@ -267,13 +269,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
                         </p>
                         </div>
                         {msg.fileData && (
-                        <button 
-                            onClick={() => downloadFile(msg.fileData!, msg.content)}
-                            className="p-1.5 md:p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full transition-colors text-slate-500 dark:text-slate-300"
-                            title="Download"
-                        >
-                            <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                        </button>
+                        <Tooltip content="Download File">
+                          <button 
+                              onClick={() => downloadFile(msg.fileData!, msg.content)}
+                              className="p-1.5 md:p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full transition-colors text-slate-500 dark:text-slate-300"
+                          >
+                              <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                          </button>
+                        </Tooltip>
                         )}
                     </div>
                     )}
@@ -321,18 +324,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
             className={`p-2 h-9 w-9 md:h-10 md:w-10 rounded-full flex-shrink-0 transition-colors ${isAiEnabled ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20' : 'text-slate-300 dark:text-slate-600 grayscale opacity-30 cursor-not-allowed'}`}
             onClick={handleAiSuggestions}
             disabled={isAiThinking}
-            title={isAiEnabled ? "AI Smart Reply" : "AI Disabled (Configure in Settings)"}
+            tooltip={isAiEnabled ? "AI Smart Reply" : "AI Disabled (Configure in Settings)"}
            >
              <Sparkles className={`w-5 h-5 md:w-6 md:h-6 ${isAiThinking ? 'animate-spin' : ''}`} />
            </Button>
 
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 md:p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex-shrink-0"
-            title="Send File (Max 2GB)"
-          >
-            <Paperclip className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
+          <Tooltip content="Send File (Max 2GB)">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1.5 md:p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex-shrink-0"
+            >
+              <Paperclip className="w-5 h-5 md:w-6 md:h-6" />
+            </button>
+          </Tooltip>
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -354,6 +358,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ connections, currentUser,
             onClick={() => handleSendText()} 
             disabled={!hasConnections || !inputText.trim()}
             className="rounded-full w-9 h-9 md:w-10 md:h-10 p-0 flex-shrink-0 flex items-center justify-center bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"
+            tooltip="Send Message"
           >
             <Send className="w-5 h-5 md:w-6 md:h-6" />
           </Button>
